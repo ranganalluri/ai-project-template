@@ -216,7 +216,7 @@ docker-compose up cosmos azurite  # Cosmos DB + Storage emulator
 
 2. **Make changes** to UI, API, or both:
    - **Frontend**: `apps/ui/src/**/*`
-   - **Backend**: `apps/api/src/**/*`
+   - **Backend**: `apps/api/src/api/**/*`
    - **Shared Code**: `apps/common/src/**/*`
 
 3. **Test locally**:
@@ -247,9 +247,9 @@ docker-compose up cosmos azurite  # Cosmos DB + Storage emulator
 
 ### Adding a New API Endpoint
 
-1. **Define Pydantic model** in `apps/api/src/models/`:
+1. **Define Pydantic model** in `apps/api/src/api/models/`:
    ```python
-   # apps/api/src/models/mymodel.py
+   # apps/api/src/api/models/mymodel.py
    from pydantic import BaseModel
    
    class MyModel(BaseModel):
@@ -257,18 +257,18 @@ docker-compose up cosmos azurite  # Cosmos DB + Storage emulator
        value: int
    ```
 
-2. **Create service logic** in `apps/api/src/services/`:
+2. **Create service logic** in `apps/api/src/api/services/`:
    ```python
-   # apps/api/src/services/my_service.py
+   # apps/api/src/api/services/my_service.py
    class MyService:
        async def get_item(self, id: str) -> MyModel:
            # Business logic here
            pass
    ```
 
-3. **Create route** in `apps/api/src/routes/`:
+3. **Create route** in `apps/api/src/api/routes/`:
    ```python
-   # apps/api/src/routes/myroute.py
+   # apps/api/src/api/routes/myroute.py
    from fastapi import APIRouter
    from ..models.mymodel import MyModel
    from ..services.my_service import MyService
@@ -280,7 +280,7 @@ docker-compose up cosmos azurite  # Cosmos DB + Storage emulator
        return await service.get_item(id)
    ```
 
-4. **Register route** in `apps/api/src/main.py`:
+4. **Register route** in `apps/api/src/api/main.py`:
    ```python
    from .routes.myroute import router as myroute_router
    
@@ -294,7 +294,7 @@ docker-compose up cosmos azurite  # Cosmos DB + Storage emulator
 **Example: Chat Completion**
 
 ```python
-# apps/api/src/routes/ai.py
+# apps/api/src/api/routes/ai.py
 from openai import AsyncOpenAI
 
 @router.post("/api/ai/chat")
@@ -557,7 +557,7 @@ npm link @datalance/ui
 
 #### CORS Issues When Calling API
 
-Ensure API CORS settings in `apps/api/src/config.py`:
+Ensure API CORS settings in `apps/api/src/api/config.py`:
 ```python
 CORS_ORIGINS = [
     "http://localhost:5173",  # Vite dev server

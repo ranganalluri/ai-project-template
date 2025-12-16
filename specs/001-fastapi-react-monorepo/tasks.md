@@ -208,18 +208,18 @@ This document contains the complete implementation task breakdown for the Agenti
 ### User Story 4 Tasks
 
 - [ ] T061 [P] [US4] Create `apps/api/src/api/routes/__init__.py` and register all routers in main.py
-- [ ] T062 [P] [US4] Create `apps/api/src/routes/agents.py` with GET /api/agents, POST /api/agents/{id}, PUT /api/agents/{id}, DELETE /api/agents/{id} endpoints
-- [ ] T063 [P] [US4] Create `apps/api/src/routes/content.py` with CRUD endpoints for content management: GET, POST, PUT, DELETE
-- [ ] T064 [P] [US4] Create `apps/api/src/routes/catalog.py` with GET /api/catalog endpoints for browsing catalog entries
-- [ ] T065 [US4] Create `apps/api/src/routes/ai.py` with POST /api/ai/chat, POST /api/ai/embeddings endpoints for OpenAI integration (see openapi.yaml)
-- [ ] T066 [US4] Create `apps/api/src/services/agent_service.py` business logic for agent CRUD operations and validation
-- [ ] T067 [US4] Create `apps/api/src/services/content_service.py` business logic for content management operations
-- [ ] T068 [US4] Create `apps/api/src/services/catalog_service.py` business logic for catalog operations
-- [ ] T069 [P] [US4] Create `apps/api/src/services/ai_service.py` with OpenAI integration using AsyncOpenAI client for chat, embeddings
-- [ ] T070 [P] [US4] Create `apps/api/src/models/agent.py` with Pydantic models: Agent, AgentCreate, AgentUpdate (see openapi.yaml)
-- [ ] T071 [P] [US4] Create `apps/api/src/models/content.py` with Pydantic models: ContentItem, ContentCreate, ContentUpdate
-- [ ] T072 [P] [US4] Create `apps/api/src/models/responses.py` with shared response models: ErrorResponse, PaginatedResponse
-- [ ] T073 [US4] Create `apps/api/src/exceptions.py` with custom exception classes: AgentNotFound, InvalidInput, OpenAIError
+- [ ] T062 [P] [US4] Create `apps/api/src/api/routes/agents.py` with GET /api/agents, POST /api/agents/{id}, PUT /api/agents/{id}, DELETE /api/agents/{id} endpoints
+- [ ] T063 [P] [US4] Create `apps/api/src/api/routes/content.py` with CRUD endpoints for content management: GET, POST, PUT, DELETE
+- [ ] T064 [P] [US4] Create `apps/api/src/api/routes/catalog.py` with GET /api/catalog endpoints for browsing catalog entries
+- [ ] T065 [US4] Create `apps/api/src/api/routes/ai.py` with POST /api/ai/chat, POST /api/ai/embeddings endpoints for OpenAI integration (see openapi.yaml)
+- [ ] T066 [US4] Create `apps/api/src/api/services/agent_service.py` business logic for agent CRUD operations and validation
+- [ ] T067 [US4] Create `apps/api/src/api/services/content_service.py` business logic for content management operations
+- [ ] T068 [US4] Create `apps/api/src/api/services/catalog_service.py` business logic for catalog operations
+- [ ] T069 [P] [US4] Create `apps/api/src/api/services/ai_service.py` with OpenAI integration using AsyncOpenAI client for chat, embeddings
+- [ ] T070 [P] [US4] Create `apps/api/src/api/models/agent.py` with Pydantic models: Agent, AgentCreate, AgentUpdate (see openapi.yaml)
+- [ ] T071 [P] [US4] Create `apps/api/src/api/models/content.py` with Pydantic models: ContentItem, ContentCreate, ContentUpdate
+- [ ] T072 [P] [US4] Create `apps/api/src/api/models/responses.py` with shared response models: ErrorResponse, PaginatedResponse
+- [ ] T073 [US4] Create `apps/api/src/api/exceptions.py` with custom exception classes: AgentNotFound, InvalidInput, OpenAIError
 - [ ] T074 [US4] Create `apps/api/tests/test_agents.py` with unit tests for agent endpoints (list, get, create, update, delete)
 - [ ] T075 [US4] Create `apps/api/tests/test_content.py` with unit tests for content endpoints and validation
 - [ ] T076 [US4] Create `apps/api/tests/integration/test_api_flow.py` integration tests for end-to-end API workflows

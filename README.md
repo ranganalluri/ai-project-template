@@ -70,13 +70,14 @@ agentic-ai/
 ├── apps/
 │   ├── api/                    # FastAPI backend service
 │   │   ├── src/
-│   │   │   ├── main.py        # FastAPI application entrypoint
-│   │   │   ├── config.py      # Configuration management
-│   │   │   ├── middleware.py  # CORS and logging middleware
-│   │   │   ├── dependencies.py # Dependency injection
-│   │   │   ├── routes/        # API route handlers
-│   │   │   ├── models/        # Pydantic models
-│   │   │   └── services/      # Business logic
+│   │   │   ├── api/            # API application code
+│   │   │   │   ├── main.py        # FastAPI application entrypoint
+│   │   │   │   ├── config.py      # Configuration management
+│   │   │   │   ├── middleware.py  # CORS and logging middleware
+│   │   │   │   ├── dependencies.py # Dependency injection
+│   │   │   │   ├── routes/        # API route handlers
+│   │   │   │   ├── models/        # Pydantic models
+│   │   │   │   └── services/      # Business logic
 │   │   ├── tests/             # API unit and integration tests
 │   │   ├── pyproject.toml    # Python dependencies
 │   │   └── Dockerfile        # Multi-stage Docker build

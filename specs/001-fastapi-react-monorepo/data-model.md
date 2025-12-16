@@ -182,7 +182,7 @@ apps/api/
 
 **Core Data Models** (Pydantic):
 ```python
-# apps/api/src/models/agent.py
+# apps/api/src/api/models/agent.py
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
@@ -208,7 +208,7 @@ class AgentUpdate(BaseModel):
 
 **OpenAI Service Pattern**:
 ```python
-# apps/api/src/services/ai_service.py
+# apps/api/src/api/services/ai_service.py
 from openai import AsyncOpenAI
 from typing import Optional
 
@@ -241,7 +241,7 @@ class AIService:
 
 **APIRouter Pattern** (modular routes):
 ```python
-# apps/api/src/routes/agents.py
+# apps/api/src/api/routes/agents.py
 from fastapi import APIRouter, HTTPException, Depends
 from ..models.agent import Agent, AgentCreate
 from ..services.agent_service import AgentService

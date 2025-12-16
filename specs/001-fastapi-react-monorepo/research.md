@@ -167,7 +167,7 @@ FastAPI's APIRouter pattern is the recommended approach for organizing routes in
 ### Implementation Pattern
 
 ```python
-# apps/api/src/app.py - Main application
+# apps/api/src/api/app.py - Main application
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -201,7 +201,7 @@ def health():
 ```
 
 ```python
-# apps/api/src/agents/routers.py - Agents module
+# apps/api/src/api/agents/routers.py - Agents module
 from fastapi import APIRouter
 
 agents_router = APIRouter()
@@ -218,7 +218,7 @@ async def chat_with_agent(agent_id: str, message: str):
 ```
 
 ```python
-# apps/api/src/content/routers.py - Content module
+# apps/api/src/api/content/routers.py - Content module
 from fastapi import APIRouter
 
 content_router = APIRouter()
@@ -336,7 +336,7 @@ ENTRYPOINT ["/usr/bin/python3.12", "-m", "uvicorn", "src.app:app", "--host", "0.
 #### 3. **Startup Optimization**
 
 ```python
-# apps/api/src/app.py
+# apps/api/src/api/app.py
 import logging
 from fastapi import FastAPI
 
@@ -801,7 +801,7 @@ VITE_LOG_LEVEL=debug
 #### Python (FastAPI)
 
 ```python
-# apps/api/src/config.py
+# apps/api/src/api/config.py
 import os
 from pathlib import Path
 from dotenv import load_dotenv

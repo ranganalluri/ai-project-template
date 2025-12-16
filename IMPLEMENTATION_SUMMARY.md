@@ -256,7 +256,7 @@ None of these affect functionality - all tests pass and app runs correctly.
 | **Build Time (Docker)** | ~15-30 seconds per image |
 | **Package Count (Python)** | 58 packages |
 | **Package Count (Node.js)** | 359 packages |
-| **Folder Depth** | 5 levels (apps/api/src/models/health.py) |
+| **Folder Depth** | 5 levels (apps/api/src/api/models/health.py) |
 
 ---
 
