@@ -29,7 +29,7 @@ def test_health_check_response_schema(client: TestClient) -> None:
 @pytest.mark.unit
 def test_health_check_response_json() -> None:
     """Test health check response is valid JSON."""
-    from src.api.models.health import HealthCheckResponse
+    from api.models.health import HealthCheckResponse
 
     response = HealthCheckResponse(
         status="ok",

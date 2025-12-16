@@ -1,9 +1,18 @@
 """Pytest configuration and fixtures."""
 
+import os
+import sys
+
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.main import app
+# Ensure 'apps/api/src' is on sys.path for absolute 'api.*' imports
+_TESTS_DIR = os.path.dirname(__file__)
+_SRC_PATH = os.path.abspath(os.path.join(_TESTS_DIR, "..", "src"))
+if _SRC_PATH not in sys.path:
+    sys.path.insert(0, _SRC_PATH)
+
+from api.main import app
 
 
 @pytest.fixture
