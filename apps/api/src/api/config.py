@@ -1,7 +1,7 @@
 """Configuration management for the Agentic API."""
 
+
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -18,16 +18,16 @@ class Settings(BaseSettings):
     api_port: int = 8000
 
     # Azure Cosmos DB
-    azure_cosmosdb_endpoint: Optional[str] = None
-    azure_cosmosdb_key: Optional[str] = None
+    azure_cosmosdb_endpoint: str | None = None
+    azure_cosmosdb_key: str | None = None
     database_name: str = "agentic"
 
     # OpenAI
-    openai_api_key: Optional[str] = None
+    openai_api_key: str | None = None
     openai_model: str = "gpt-4-turbo-preview"
 
     # Azure Service Bus
-    azure_servicebus_connection_string: Optional[str] = None
+    azure_servicebus_connection_string: str | None = None
 
     # UI
     ui_url: str = "http://localhost:5173"

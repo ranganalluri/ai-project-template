@@ -1,7 +1,9 @@
 """Main FastAPI application."""
 
 import logging
+
 from fastapi import FastAPI
+
 from src.api.config import get_settings
 from src.api.middleware import setup_middleware
 from src.api.routes import api_router
