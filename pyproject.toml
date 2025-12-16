@@ -1,0 +1,78 @@
+[project]
+name = "agentic-ai"
+version = "0.1.0"
+description = "Agentic AI - FastAPI + React monorepo for building AI-powered applications"
+authors = [{name = "Agentic AI Team"}]
+requires-python = ">=3.12"
+
+[tool.uv]
+managed = true
+dev-dependencies = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "black>=23.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "openai>=1.3.0",
+    "azure-cosmos>=4.5.0",
+    "azure-servicebus>=7.11.0",
+    "azure-identity>=1.14.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.uv.sources]
+agentic-api = {path = "apps/api", editable = true}
+agentic-functions = {path = "apps/functions", editable = true}
+agentic-common = {path = "apps/common", editable = true}
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "W", "I", "N", "UP", "RUF"]
+extend-ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["apps/api/tests", "apps/functions/tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --strict-markers"
+markers = [
+    "unit: mark test as a unit test",
+    "integration: mark test as an integration test",
+    "slow: mark test as slow running",
+]

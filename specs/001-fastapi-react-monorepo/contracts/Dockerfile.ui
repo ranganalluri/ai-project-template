@@ -1,0 +1,36 @@
+# Multi-stage Dockerfile for React UI
+# Build stage
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy root workspace files
+COPY package.json package-lock.json ./
+COPY apps/ui ./apps/ui
+
+# Install dependencies (npm ci is preferred in Docker)
+RUN npm ci
+
+# Build the application
+RUN npm run build --workspace=@agentic/ui
+
+# Runtime stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install serve to run the static site
+RUN npm install -g serve
+
+# Copy built assets from builder
+COPY --from=builder /app/apps/ui/dist ./dist
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Expose port
+EXPOSE 3000
+
+# Run the application
+CMD ["serve", "-s", "dist", "-l", "3000"]

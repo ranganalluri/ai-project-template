@@ -1,0 +1,22 @@
+{
+  "name": "agentic-ai",
+  "version": "0.1.0",
+  "description": "Agentic AI - FastAPI + React monorepo for building AI-powered applications",
+  "private": true,
+  "workspaces": [
+    "apps/ui"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=@agentic/ui\" \"cd apps/api && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000\"",
+    "build": "npm run build --workspace=@agentic/ui",
+    "test": "npm test --workspace=@agentic/ui && uv run pytest",
+    "lint": "npm run lint --workspace=@agentic/ui && uv run ruff check .",
+    "format": "npm run format --workspace=@agentic/ui && uv run black .",
+    "type-check": "npm run type-check --workspace=@agentic/ui && uv run mypy apps/",
+    "clean": "rimraf dist/ build/ coverage/ .pytest_cache/ **/.next **/.venv **/node_modules **/__pycache__"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "rimraf": "^5.0.5"
+  }
+}

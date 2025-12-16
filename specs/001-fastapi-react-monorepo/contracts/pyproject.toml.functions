@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-functions"
+version = "1.0.0"
+description = "Azure Functions v2 for Agentic AI - background processing, batch jobs, webhooks"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Agentic AI Team" }
+]
+
+[project.dependencies]
+azure-functions = "^1.18.0"
+azure-identity = "^1.14.0"
+azure-cosmos = "^4.3.0"
+azure-servicebus = "^7.11.0"
+azure-storage-queue = "^12.19.0"
+
+# Optional: for durable functions
+# azure-durable-functions = "^1.1.0"
+
+pydantic = "^2.4.0"
+pydantic-settings = "^2.0.0"
+python-dotenv = "^1.0.0"
+azure-monitor-opentelemetry = "^1.0.0"
+
+# Shared workspace dependency
+agentic-common = { workspace = true }
+
+[project.optional-dependencies]
+dev = [
+    "pytest >= 7.4.0",
+    "pytest-cov >= 4.1.0",
+    "pytest-asyncio >= 0.21.0",
+    "black >= 23.7.0",
+    "ruff >= 0.0.292",
+    "mypy >= 1.5.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = "src"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "I", "UP", "B", "A", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["azure.*", "functions.*"]
+ignore_missing_imports = true

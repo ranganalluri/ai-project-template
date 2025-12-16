@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-api"
+version = "1.0.0"
+description = "FastAPI backend for Agentic AI - handles REST API and OpenAI integration"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Agentic AI Team" }
+]
+
+[project.urls]
+Homepage = "https://github.com/agentic/ai_project"
+Documentation = "https://api.datalance.dev/docs"
+
+# API service dependencies
+[project.dependencies]
+fastapi = "^0.104.0"
+uvicorn = { version = "^0.24.0", extras = ["standard"] }
+pydantic = "^2.4.0"
+pydantic-settings = "^2.0.0"
+pydantic-extra-types = "^2.1.0"
+
+# Database & Storage
+azure-cosmos = "^4.3.0"
+azure-identity = "^1.14.0"
+
+# Queue & Messaging
+azure-servicebus = "^7.11.0"
+
+# OpenAI Integration
+openai = "^1.3.0"
+
+# Async & Utilities
+httpx = "^0.25.0"
+python-dotenv = "^1.0.0"
+
+# Logging & Monitoring
+azure-monitor-opentelemetry = "^1.0.0"
+
+# Shared workspace dependency
+agentic-common = { workspace = true }
+
+[project.optional-dependencies]
+dev = [
+    "pytest = ^7.4.0",
+    "pytest-cov >= 4.1.0",
+    "pytest-asyncio >= 0.21.0",
+    "httpx >= 0.25.0",  # For TestClient
+    "black >= 23.7.0",
+    "ruff >= 0.0.292",
+    "mypy >= 1.5.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = "src"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "I", "UP", "B", "A", "RUF"]
+exclude = ["tests", ".venv"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "openai.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "azure.*"
+ignore_missing_imports = true

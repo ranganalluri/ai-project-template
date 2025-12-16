@@ -1,0 +1,58 @@
+# Multi-stage Dockerfile for FastAPI Backend
+# Build stage
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+# Install system dependencies and uv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set PATH for uv
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy workspace files
+COPY pyproject.toml uv.lock ./
+COPY apps/common ./apps/common
+COPY apps/api ./apps/api
+
+# Install dependencies using uv
+RUN uv sync --frozen
+
+# Runtime stage
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy venv from builder (uv creates .venv in workspace)
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY --from=builder /app/apps/api ./apps/api
+COPY --from=builder /app/apps/common ./apps/common
+
+# Set environment
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/api/health', timeout=5)"
+
+# Expose port
+EXPOSE 8000
+
+# Run FastAPI with uvicorn
+CMD ["uvicorn", "apps.api.src.main:app", "--host", "0.0.0.0", "--port", "8000"]

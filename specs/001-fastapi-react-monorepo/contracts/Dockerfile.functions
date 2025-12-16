@@ -1,0 +1,48 @@
+# Multi-stage Dockerfile for Azure Functions Python
+# Build stage
+FROM mcr.microsoft.com/azure-functions/python:4-python3.12 AS builder
+
+WORKDIR /app
+
+# Install uv
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy workspace
+COPY pyproject.toml uv.lock ./
+COPY apps/common ./apps/common
+COPY apps/functions ./apps/functions
+
+# Install dependencies
+RUN uv sync --frozen
+
+# Runtime stage
+FROM mcr.microsoft.com/azure-functions/python:4-python3.12
+
+WORKDIR /home/site/wwwroot
+
+# Copy venv from builder
+COPY --from=builder /app/.venv /home/site/wwwroot/.venv
+
+# Copy application code
+COPY --from=builder /app/apps/functions ./
+COPY --from=builder /app/apps/common ../common
+
+# Set environment
+ENV PATH="/home/site/wwwroot/.venv/bin:$PATH" \
+    PYTHONPATH="/home/site/wwwroot:/home/common" \
+    AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /home/site
+USER appuser
+
+# Health check (optional - Azure Functions manage this)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:7071/api/health || exit 1
+
+# Azure Functions will automatically start the functions host

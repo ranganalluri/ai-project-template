@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-functions"
+version = "0.1.0"
+description = "Agentic AI - Azure Functions for background processing"
+authors = [{name = "Agentic AI Team"}]
+requires-python = ">=3.12"
+dependencies = [
+    "azure-functions>=1.18.0",
+    "azure-cosmos>=4.5.0",
+    "azure-servicebus>=7.11.0",
+    "azure-identity>=1.14.0",
+    "python-dotenv>=1.0.0",
+    "agentic-common",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "black>=23.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "W", "I", "N", "UP", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+no_implicit_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py", "*_test.py"]
