@@ -2,9 +2,9 @@
 
 import logging
 from fastapi import FastAPI
-from src.config import get_settings
-from src.middleware import setup_middleware
-from src.routes import api_router
+from src.api.config import get_settings
+from src.api.middleware import setup_middleware
+from src.api.routes import api_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

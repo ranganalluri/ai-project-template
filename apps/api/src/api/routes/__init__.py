@@ -1,7 +1,7 @@
 """Route initialization module."""
 
 from fastapi import APIRouter
-from src.routes.health import router as health_router
+from src.api.routes.health import router as health_router
 
 # Create main API router
 api_router = APIRouter(prefix="/api")

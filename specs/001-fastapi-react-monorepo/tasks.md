@@ -117,12 +117,12 @@ This document contains the complete implementation task breakdown for the Agenti
 
 ### User Story 1 Tasks
 
-- [ ] T016 [P] [US1] Create `apps/api/src/main.py` FastAPI application entrypoint with CORS middleware, health check endpoint at `/api/health`
-- [ ] T017 [P] [US1] Create `apps/api/src/config.py` with Pydantic Settings for environment variables (OPENAI_API_KEY, AZURE_COSMOSDB_ENDPOINT, etc.)
-- [ ] T018 [P] [US1] Create `apps/api/src/middleware.py` with CORS configuration allowing http://localhost:5173 (UI dev server) and logging setup
-- [ ] T019 [P] [US1] Create `apps/api/src/routes/health.py` with GET `/api/health` endpoint returning {"status": "ok", "version": "1.0.0"}
-- [ ] T020 [P] [US1] Create `apps/api/src/dependencies.py` with FastAPI dependency injection setup for database, caching, service initialization
-- [ ] T021 [P] [US1] Create `apps/api/src/models/__init__.py` and `apps/api/src/models/health.py` with HealthCheckResponse Pydantic model
+- [ ] T016 [P] [US1] Create `apps/api/src/api/main.py` FastAPI application entrypoint with CORS middleware, health check endpoint at `/api/health`
+- [ ] T017 [P] [US1] Create `apps/api/src/api/config.py` with Pydantic Settings for environment variables (OPENAI_API_KEY, AZURE_COSMOSDB_ENDPOINT, etc.)
+- [ ] T018 [P] [US1] Create `apps/api/src/api/middleware.py` with CORS configuration allowing http://localhost:5173 (UI dev server) and logging setup
+- [ ] T019 [P] [US1] Create `apps/api/src/api/routes/health.py` with GET `/api/health` endpoint returning {"status": "ok", "version": "1.0.0"}
+- [ ] T020 [P] [US1] Create `apps/api/src/api/dependencies.py` with FastAPI dependency injection setup for database, caching, service initialization
+- [ ] T021 [P] [US1] Create `apps/api/src/api/models/__init__.py` and `apps/api/src/api/models/health.py` with HealthCheckResponse Pydantic model
 - [ ] T022 [US1] Create `apps/ui/src/App.tsx` React root component with router setup and layout components (Header, Sidebar)
 - [ ] T023 [US1] Create `apps/ui/src/pages/Home.tsx` with welcome message and navigation links to other pages
 - [ ] T024 [US1] Create `apps/ui/src/services/api-client.ts` HTTP client service using fetch or axios for calling `/api/*` endpoints (see data-model.md)
@@ -201,13 +201,13 @@ This document contains the complete implementation task breakdown for the Agenti
 **Story**: US4  
 **Priority**: P2  
 **Duration**: 12-18 hours  
-**Independent Test**: Run `uv run uvicorn apps.api.src.main:app --reload` → test `/api/health` endpoint → run `uv run pytest` → build Docker image and verify API responds  
+**Independent Test**: Run `uv run uvicorn apps.api.src.api.main:app --reload` → test `/api/health` endpoint → run `uv run pytest` → build Docker image and verify API responds  
 **Test Command**: `uv run pytest` passes, `docker build -f Dockerfile.api -t agentic-api .` succeeds, API health check responds  
 **Dependencies**: Phase 1 & 2 complete; works in parallel with US3
 
 ### User Story 4 Tasks
 
-- [ ] T061 [P] [US4] Create `apps/api/src/routes/__init__.py` and register all routers in main.py
+- [ ] T061 [P] [US4] Create `apps/api/src/api/routes/__init__.py` and register all routers in main.py
 - [ ] T062 [P] [US4] Create `apps/api/src/routes/agents.py` with GET /api/agents, POST /api/agents/{id}, PUT /api/agents/{id}, DELETE /api/agents/{id} endpoints
 - [ ] T063 [P] [US4] Create `apps/api/src/routes/content.py` with CRUD endpoints for content management: GET, POST, PUT, DELETE
 - [ ] T064 [P] [US4] Create `apps/api/src/routes/catalog.py` with GET /api/catalog endpoints for browsing catalog entries
@@ -322,7 +322,7 @@ This document contains the complete implementation task breakdown for the Agenti
 - ✅ All acceptance scenarios from spec.md pass
 
 ### User Story 4: Backend API Development & Testing
-- ✅ `uv run uvicorn apps.api.src.main:app --reload` starts API server
+- ✅ `uv run uvicorn apps.api.src.api.main:app --reload` starts API server
 - ✅ Swagger docs available at /docs endpoint
 - ✅ `/api/health` endpoint returns correct JSON response
 - ✅ Dockerfile builds successfully and API runs in container

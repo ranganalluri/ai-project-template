@@ -1,8 +1,8 @@
 """Health check routes."""
 
 from fastapi import APIRouter, Depends
-from src.config import Settings, get_settings
-from src.models.health import HealthCheckResponse
+from src.api.config import Settings, get_settings
+from src.api.models.health import HealthCheckResponse
 
 router = APIRouter(tags=["health"])
 

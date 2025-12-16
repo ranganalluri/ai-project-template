@@ -43,7 +43,7 @@ jobs:
         run: uv run black --check apps/
 
       - name: Run Python type checker (mypy)
-        run: uv run mypy apps/api/src apps/functions/src apps/common/src
+        run: uv run mypy apps/api/src/api apps/functions/src apps/common/src
 
       - name: Run Node.js linter
         run: npm run lint --workspace=@agentic/ui
