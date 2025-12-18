@@ -20,5 +20,5 @@
     ],
     "python.analysis.exclude": [
         "**/src"
-    ]
+    ],
 }

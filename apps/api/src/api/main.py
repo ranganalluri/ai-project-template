@@ -25,9 +25,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info(f"{settings.app_name} v{settings.app_version} started")
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Log level: {settings.log_level}")
-    
+
     yield
-    
+
     # Shutdown
     logger.info(f"{settings.app_name} shutting down")
 

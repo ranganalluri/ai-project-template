@@ -1,6 +1,5 @@
 """Configuration management for the Agentic API."""
 
-
 from pydantic_settings import BaseSettings
 
 
@@ -14,7 +13,7 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     # API
-    api_host: str = "0.0.0.0"
+    api_host: str = "localhost"
     api_port: int = 8000
 
     # Azure Cosmos DB

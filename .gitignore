@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 *.so
@@ -56,7 +57,7 @@ build/
 out/
 
 # IDE
-.vscode/
+# .vscode/
 .idea/
 *.swp
 *.swo

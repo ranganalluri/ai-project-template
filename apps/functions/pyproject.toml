@@ -14,7 +14,7 @@ dependencies = [
     "azure-servicebus>=7.11.0",
     "azure-identity>=1.14.0",
     "python-dotenv>=1.0.0",
-    "agentic-common",
+    "agentic-common-py",
 ]
 
 [project.optional-dependencies]

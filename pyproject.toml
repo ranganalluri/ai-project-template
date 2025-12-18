@@ -29,13 +29,13 @@ dev-dependencies = [
 members = [
     "apps/api",
     "apps/functions",
-    "apps/common",
+    "apps/common-py",
 ]
 
 [tool.uv.sources]
 agentic-api = {workspace = true }
 agentic-functions = {workspace = true }
-agentic-common = {workspace = true }
+agentic-common-py = {workspace = true }
 
 [tool.black]
 line-length = 100

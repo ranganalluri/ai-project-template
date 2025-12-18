@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentic-common"
+name = "agentic-common-py"
 version = "0.1.0"
 description = "Agentic AI - Shared Python utilities and models"
 authors = [{name = "Agentic AI Team"}]
