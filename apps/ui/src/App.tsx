@@ -6,7 +6,7 @@ import { Agents } from '@/pages/Agents'
 import { Content } from '@/pages/Content'
 import { Catalog } from '@/pages/Catalog'
 import '@/styles/index.css'
-
+import '@agentic/ui-lib/style.css';
 type Page = 'home' | 'agents' | 'content' | 'catalog'
 
 const App: React.FC = () => {

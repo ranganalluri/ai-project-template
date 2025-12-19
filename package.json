@@ -4,7 +4,8 @@
   "description": "Agentic AI - FastAPI + React monorepo for building AI-powered applications",
   "private": true,
   "workspaces": [
-    "apps/ui"
+    "apps/ui",
+    "apps/ui-lib"
   ],
   "scripts": {
     "dev": "concurrently \"npm run ui\" \"npm run api\"",
