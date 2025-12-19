@@ -22,12 +22,20 @@ dev-dependencies = [
     "azure-servicebus>=7.11.0",
     "azure-identity>=1.14.0",
     "python-dotenv>=1.0.0",
+    "debugpy",
+]
+
+[tool.uv.workspace]
+members = [
+    "apps/api",
+    "apps/functions",
+    "apps/common-py",
 ]
 
 [tool.uv.sources]
-agentic-api = {path = "apps/api", editable = true}
-agentic-functions = {path = "apps/functions", editable = true}
-agentic-common = {path = "apps/common", editable = true}
+agentic-api = {workspace = true }
+agentic-functions = {workspace = true }
+agentic-common-py = {workspace = true }
 
 [tool.black]
 line-length = 100

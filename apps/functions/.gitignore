@@ -1,0 +1,39 @@
+# Azure Functions
+local.settings.json
+*.publish.settings
+.azurefunctions/
+__blobstorage__/
+__queuestorage__/
+__azurite_db*__.json
+.python_packages/
+bin/
+obj/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+dist/
+build/
+*.egg-info/

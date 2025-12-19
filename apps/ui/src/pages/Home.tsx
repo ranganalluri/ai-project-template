@@ -1,8 +1,11 @@
 import React from 'react'
 import { Card } from '@/components/common/Card'
-import { Button } from '@/components/common/Button'
+import { Button } from '@agentic/ui-lib'
 
 export const Home: React.FC = () => {
+  const click = () => {
+    console.log('Button clicked')
+  }
   return (
     <main className="flex-1 p-8">
       <Card title="Welcome to Agentic AI">
@@ -13,7 +16,7 @@ export const Home: React.FC = () => {
           Use the navigation menu to explore agents, manage content, browse the catalog, and more.
         </p>
         <div className="flex gap-4">
-          <Button variant="primary" size="lg">
+          <Button variant="primary" onClick={click} size="lg">
             Get Started
           </Button>
           <Button variant="secondary" size="lg">

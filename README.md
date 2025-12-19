@@ -53,7 +53,7 @@ Services will be available at:
 ```bash
 # Terminal 1: Start API
 cd apps/api
-uv run uvicorn src.main:app --reload --port 8000
+uv run uvicorn src.api.main:app --reload --port 8000
 
 # Terminal 2: Start UI
 cd apps/ui
@@ -70,13 +70,14 @@ agentic-ai/
 ├── apps/
 │   ├── api/                    # FastAPI backend service
 │   │   ├── src/
-│   │   │   ├── main.py        # FastAPI application entrypoint
-│   │   │   ├── config.py      # Configuration management
-│   │   │   ├── middleware.py  # CORS and logging middleware
-│   │   │   ├── dependencies.py # Dependency injection
-│   │   │   ├── routes/        # API route handlers
-│   │   │   ├── models/        # Pydantic models
-│   │   │   └── services/      # Business logic
+│   │   │   ├── api/            # API application code
+│   │   │   │   ├── main.py        # FastAPI application entrypoint
+│   │   │   │   ├── config.py      # Configuration management
+│   │   │   │   ├── middleware.py  # CORS and logging middleware
+│   │   │   │   ├── dependencies.py # Dependency injection
+│   │   │   │   ├── routes/        # API route handlers
+│   │   │   │   ├── models/        # Pydantic models
+│   │   │   │   └── services/      # Business logic
 │   │   ├── tests/             # API unit and integration tests
 │   │   ├── pyproject.toml    # Python dependencies
 │   │   └── Dockerfile        # Multi-stage Docker build
@@ -161,13 +162,13 @@ agentic-ai/
 
 ```bash
 # Run API locally (with auto-reload)
-uv run uvicorn apps.api.src.main:app --reload
+uv run uvicorn apps.api.src.api.main:app --reload
 
 # Run API tests
 uv run pytest apps/api/tests -v
 
 # Run with coverage
-uv run pytest apps/api/tests --cov=apps/api/src
+uv run pytest apps/api/tests --cov=apps/api/src/api
 
 # Format Python code
 uv run black apps/
@@ -176,7 +177,7 @@ uv run black apps/
 uv run ruff check apps/
 
 # Type checking
-uv run mypy apps/api/src apps/functions/src apps/common/src
+uv run mypy apps/api/src/api apps/functions/src apps/common/src
 ```
 
 ### Node.js/TypeScript Commands
@@ -308,7 +309,7 @@ npm test --workspace=@agentic/ui -- --watch
 
 ```bash
 # Generate coverage report
-uv run pytest apps/api/tests --cov=apps/api/src --cov-report=html
+uv run pytest apps/api/tests --cov=apps/api/src/api --cov-report=html
 
 # View report
 open htmlcov/index.html

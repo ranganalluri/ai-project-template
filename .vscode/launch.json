@@ -1,0 +1,55 @@
+
+ {
+     "version": "0.2.0",
+     "configurations": [
+         {
+             "name": "Attach to Chrome",
+             "port": 9222,
+             "request": "attach",
+             "type": "chrome",
+             "webRoot": "${workspaceFolder}"
+         },
+         {
+            "name": "Launch Chrome (Vite)",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}"
+        },
+         {
+             "name": "Debug FastAPI",
+             "type": "debugpy",
+             "request": "launch",
+             "module": "uvicorn",
+             "args": [
+                 "api.main:app",
+                 "--host",
+                 "localhost",
+                 "--port",
+                 "8000",
+                 "--reload"
+             ],
+             "cwd": "${workspaceFolder}/apps/api",
+             "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+             "env": {
+                 // "PYTHONPATH": "${workspaceFolder}/apps/api/src:${workspaceFolder}/apps/common/src"
+             },
+             "console": "integratedTerminal",
+             "justMyCode": true
+         },
+         {
+             "name": "Debug FastAPI Direct",
+             "type": "debugpy",
+             "request": "launch",
+             "module": "api.main",
+             "cwd": "${workspaceFolder}",
+             "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+             "env": {
+                 // "PYTHONPATH": "${workspaceFolder}/apps/api/src:${workspaceFolder}/apps/common/src"
+             },
+             "console": "integratedTerminal",
+             "justMyCode": true
+         }
+     ]
+ }
+ 

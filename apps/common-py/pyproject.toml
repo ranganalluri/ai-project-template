@@ -3,31 +3,27 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentic-functions"
+name = "agentic-common-py"
 version = "0.1.0"
-description = "Agentic AI - Azure Functions for background processing"
+description = "Agentic AI - Shared Python utilities and models"
 authors = [{name = "Agentic AI Team"}]
 requires-python = ">=3.12"
 dependencies = [
-    "azure-functions>=1.18.0",
-    "azure-cosmos>=4.5.0",
-    "azure-servicebus>=7.11.0",
-    "azure-identity>=1.14.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
     "python-dotenv>=1.0.0",
-    "agentic-common-py",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
-    "pytest-asyncio>=0.21",
     "black>=23.0",
     "ruff>=0.1",
     "mypy>=1.0",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/functions"]
+packages = ["src/common"]
 
 [tool.black]
 line-length = 100
@@ -45,5 +41,4 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
 python_files = ["test_*.py", "*_test.py"]
