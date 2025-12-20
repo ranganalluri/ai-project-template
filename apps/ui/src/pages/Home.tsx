@@ -1,6 +1,8 @@
-import React from 'react'
-import { Card } from '@/components/common/Card'
-import { Button } from '@agentic/ui-lib'
+
+import React from 'react';
+import { Card } from '@/components/common/Card';
+import { Button } from '@agentic/ui-lib';
+import { UserList } from '@/components/common/UserList';
 
 export const Home: React.FC = () => {
   const click = () => {
@@ -8,7 +10,7 @@ export const Home: React.FC = () => {
   }
   return (
     <main className="flex-1 p-8">
-      <Card title="Welcome to Agentic AI">
+      {/* <Card title="Welcome to Agentic AI">
         <p className="text-gray-700 mb-4">
           Agentic AI is a powerful platform for building and deploying AI agents using FastAPI and React.
         </p>
@@ -35,7 +37,9 @@ export const Home: React.FC = () => {
         <Card title="📚 Catalog">
           <p className="text-gray-700">Browse available models and capabilities.</p>
         </Card>
-      </div>
+      </div> */}
+
+      <UserList />
     </main>
-  )
+  );
 }
