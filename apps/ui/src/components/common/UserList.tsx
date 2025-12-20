@@ -2,18 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@agentic/ui-lib';
 import { useGetApi, usePostApi } from '@/hooks/useApi';
-
-export interface User {
-  user_id: string;
-  name: string;
-  email: string;
-}
+import { User } from '@agentic/ui-lib';
 
 export const UserList: React.FC = () => {
   const { data: users, loading, error, refetch } = useGetApi<User[]>("/users");
   const { loading: postLoading, error: postError, post } = usePostApi<User>("/users");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ user_id: '', name: '', email: '' });
+  const [form, setForm] = useState<User>({ user_id: '', name: '', email: '' });
   const [formError, setFormError] = useState<string | null>(null);
 
   // Watch for error changes and show message

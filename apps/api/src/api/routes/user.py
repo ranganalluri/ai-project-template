@@ -1,6 +1,4 @@
 """User API routes."""
-
-from typing import list
 from fastapi import APIRouter, HTTPException, status, Depends
 from api.models.user import User
 from api.services.user_service import UserService
