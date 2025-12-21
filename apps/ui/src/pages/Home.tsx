@@ -1,13 +1,13 @@
 
 import React from 'react';
-import { Card } from '@/components/common/Card';
-import { Button } from '@agentic/ui-lib';
+// import { Card } from '@/components/common/Card';
+// import { Button } from '@agentic/ui-lib';
 import { UserList } from '@/components/common/UserList';
 
 export const Home: React.FC = () => {
-  const click = () => {
-    console.log('Button clicked')
-  }
+  // const click = () => {
+  //   console.log('Button clicked')
+  // }
   return (
     <main className="flex-1 p-8">
       {/* <Card title="Welcome to Agentic AI">

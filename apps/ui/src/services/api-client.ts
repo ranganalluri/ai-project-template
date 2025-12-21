@@ -1,5 +1,6 @@
+/// <reference types="vite/client" />
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
-
+console.log("API URL:", import.meta.env.VITE_API_URL);
 export class ApiClient {
   private baseUrl: string
 
@@ -8,6 +9,7 @@ export class ApiClient {
   }
 
   async get<T>(endpoint: string): Promise<T> {
+    console.log(`GET Request to: ${this.baseUrl}${endpoint}`);
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'GET',
       headers: {

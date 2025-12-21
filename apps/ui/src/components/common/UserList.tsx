@@ -37,7 +37,7 @@ export const UserList: React.FC = () => {
     <section className="mt-8">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-semibold">Users</h2>
-        <Button variant="primary" onClick={() => setShowForm((v) => !v)}>
+        <Button onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Cancel' : 'Add User'}
         </Button>
       </div>
@@ -65,14 +65,14 @@ export const UserList: React.FC = () => {
             onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
             required
           />
-          <Button type="submit" variant="success">Save</Button>
+          <Button type="submit">Save</Button>
         </form>
       )}
       {formError && <div className="text-red-600">{formError}</div>}
       {(loading || postLoading) ? (
         <div>Loading users...</div>
       ) : error ? (
-        <div className="text-red-600">{error.message}</div>
+        <div className="text-red-600">{error instanceof Error ? error.message : String(error)}</div>
       ) : (
         <table className="min-w-full border mt-2">
           <thead>
