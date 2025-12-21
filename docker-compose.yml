@@ -18,11 +18,11 @@ services:
     volumes:
       - ./apps/api/src:/app/src:ro
       - ./apps/common/src:/app/common/src:ro
-    depends_on:
-      cosmos:
-        condition: service_healthy
-      azurite:
-        condition: service_healthy
+    # depends_on:
+    #   cosmos:
+    #     condition: service_healthy
+    #   azurite:
+    #     condition: service_healthy
     networks:
       - agentic
     healthcheck:
@@ -36,6 +36,8 @@ services:
     build:
       context: .
       dockerfile: apps/ui/Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:8000/api
     container_name: agentic-ui
     ports:
       - "5173:5173"

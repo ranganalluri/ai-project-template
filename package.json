@@ -8,14 +8,18 @@
     "apps/ui-lib"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run ui\" \"npm run api\"",
-    "ui": "npm run dev --workspace=@agentic/ui",
+    "run": "concurrently \"pnpm  ui\" \"pnpm api\"",
+    "ui": "pnpm --filter=@agentic/ui dev",
     "api": "uv run python -m uvicorn api.main:app --reload --host localhost --port 8000",
-    "build": "npm run build --workspace=@agentic/ui",
-    "test": "npm test --workspace=@agentic/ui && uv run pytest",
-    "lint": "npm run lint --workspace=@agentic/ui && uv run ruff check .",
-    "format": "npm run format --workspace=@agentic/ui && uv run black .",
-    "type-check": "npm run type-check --workspace=@agentic/ui && uv run mypy apps/",
+    "build:ui": "pnpm build:ui-lib && pnpm --filter=@agentic/ui build",
+    "build:ui-lib": "pnpm --filter=@agentic/ui-lib build",
+    "docker:ui": "docker build -t agentic-ui -f apps/ui/Dockerfile .",
+    "docker:compose": "docker compose up --build",
+    "docker:api": "docker build -t agentic-api -f apps/api/Dockerfile .",
+    "test": "pnpm test --workspace=@agentic/ui && uv run pytest",
+    "lint": "pnpm lint --workspace=@agentic/ui && uv run ruff check .",
+    "format": "pnpm format --workspace=@agentic/ui && uv run black .",
+    "type-check": "pnpm type-check --workspace=@agentic/ui && uv run mypy apps/",
     "clean": "rimraf dist/ build/ coverage/ .pytest_cache/ **/.next **/.venv **/node_modules **/__pycache__"
   },
   "devDependencies": {
