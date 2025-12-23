@@ -45,10 +45,19 @@ jobs:
       - name: Log in with Azure (Federated Credentials)
         if: ${{ env.AZURE_CLIENT_ID != '' }}
         run: |
+          # Authenticate with azd
           azd auth login `
             --client-id "$Env:AZURE_CLIENT_ID" `
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
+          
+          # Also authenticate Azure CLI using the same federated credentials
+          az login `
+            --service-principal `
+            -u "$Env:AZURE_CLIENT_ID" `
+            -t "$Env:AZURE_TENANT_ID" `
+            --federated-token "$Env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" `
+            --allow-no-subscriptions
         shell: pwsh
         
       - name: Create or Select AZD Environment
