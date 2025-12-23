@@ -45,32 +45,11 @@ jobs:
       - name: Log in with Azure (Federated Credentials)
         if: ${{ env.AZURE_CLIENT_ID != '' }}
         run: |
-          # Authenticate with azd
           azd auth login `
             --client-id "$Env:AZURE_CLIENT_ID" `
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
-          
-          # Get the federated token from GitHub Actions and use it to authenticate Azure CLI
-          $token = $Env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-          $tokenFilePath = "/tmp/token.jwt"
-          
-          # Save token to file for Azure CLI
-          $token | Out-File -FilePath $tokenFilePath -NoNewline
-          
-          # Authenticate Azure CLI using federated token
-          az login `
-            --service-principal `
-            -u "$Env:AZURE_CLIENT_ID" `
-            -t "$Env:AZURE_TENANT_ID" `
-            --federated-token (Get-Content $tokenFilePath -Raw)
-          
-          # Set the subscription
-          az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
         shell: pwsh
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         
       - name: Create or Select AZD Environment
         run: |
@@ -97,16 +76,6 @@ jobs:
           azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ env.AZURE_CONTAINER_REGISTRY_ENDPOINT }}"
           azd env set BUILD_TAG "${{ env.BUILD_TAG }}"
           Write-Host "✓ Environment variables set successfully"
-        shell: pwsh
-
-      - name: Create Azure Resource Group
-        run: |
-          Write-Host "Creating resource group: ${{ env.AZURE_RESOURCE_GROUP }}"
-          az group create `
-            --name "${{ env.AZURE_RESOURCE_GROUP }}" `
-            --location "${{ env.AZURE_LOCATION }}" `
-            --subscription "${{ env.AZURE_SUBSCRIPTION_ID }}"
-          Write-Host "✓ Resource group created/verified"
         shell: pwsh
 
       - name: Provision Infrastructure
