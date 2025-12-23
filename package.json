@@ -16,6 +16,7 @@
     "docker:ui": "docker build -t agentic-ui -f apps/ui/Dockerfile .",
     "docker:compose": "docker compose up --build",
     "docker:api": "docker build -t agentic-api -f apps/api/Dockerfile .",
+    "docker:functions": "docker build -t agentic-functions -f apps/functions/Dockerfile .",
     "test": "pnpm test --workspace=@agentic/ui && uv run pytest",
     "lint": "pnpm lint --workspace=@agentic/ui && uv run ruff check .",
     "format": "pnpm format --workspace=@agentic/ui && uv run black .",

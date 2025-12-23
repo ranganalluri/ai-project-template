@@ -2,7 +2,13 @@
 
 # Post-provision hook to update API with UI URL (resolves circular dependency)
 
+param(
+    [string]$ServiceName
+)
+
+
 Write-Host "Running post-provision hook to update API with UI URL..." -ForegroundColor Cyan
+
 
 $UI_URL = azd env get-value UI_URL
 $API_NAME = azd env get-value API_NAME

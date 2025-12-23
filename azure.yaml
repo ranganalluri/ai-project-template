@@ -20,8 +20,9 @@ services:
     language: python
     docker:
       path: ./apps/functions/Dockerfile
-      context: .
     host: containerapp
+    deploy:
+      bicep: infra/functions.bicep
     
   ui:
     project: .
@@ -32,10 +33,10 @@ services:
     host: containerapp
     deploy:
       bicep: infra/ui.bicep
-    hooks:
-      postdeploy:
-        shell: pwsh
-        run: ./hooks/ui-postdeploy.ps1
+    # hooks:
+    #   postdeploy:
+    #     shell: pwsh
+    #     run: ./hooks/ui-postdeploy.ps1
 
 # Infrastructure as Code definition
 infra:
@@ -44,9 +45,9 @@ infra:
 
 # Hooks for post-provision operations
 hooks:
-  postprovision:
-    shell: pwsh
-    run: ./hooks/postprovision.ps1
+  # postprovision:
+  #   shell: pwsh
+  #   run: ./hooks/postprovision.ps1
   predeploy:
     shell: pwsh
     run: ./hooks/predeploy.ps1

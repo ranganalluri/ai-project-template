@@ -10,6 +10,11 @@ Write-Host "Running post-deploy hook for service: $ServiceName" -ForegroundColor
 
 $RESOURCE_GROUP = azd env get-value AZURE_RESOURCE_GROUP
 
+
+Write-Host "Fetching deployed service details..." -ForegroundColor Green
+# Start-Sleep -Seconds 50
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/ui-postdeploy.ps1"
+
 if ($ServiceName) {
     Write-Host "Service $ServiceName deployed successfully" -ForegroundColor Green
     

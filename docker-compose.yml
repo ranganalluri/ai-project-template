@@ -31,18 +31,46 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
+  
+  functions:
+    build:
+      context: .
+      dockerfile: apps/functions/Dockerfile
+    container_name: agentic-functions
+    ports:
+      - "7071:80"
+    environment:
+      - AZURE_COSMOSDB_ENDPOINT=${AZURE_COSMOSDB_ENDPOINT}
+      - AZURE_COSMOSDB_KEY=${AZURE_COSMOSDB_KEY}
+      - AZURE_SERVICEBUS_CONNECTION_STRING=${AZURE_SERVICEBUS_CONNECTION_STRING}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_ENVIRONMENT=development
+      - API_LOG_LEVEL=debug
+    volumes:
+      - ./apps/functions/src:/app/src:ro
+      - ./apps/common/src:/app/common/src:ro
+    # depends_on:
+    #   cosmos:
+    #     condition: service_healthy
+    #   azurite:
+    #     condition: service_healthy
+    networks:
+      - agentic
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
   ui:
     build:
       context: .
       dockerfile: apps/ui/Dockerfile
-      args:
-        - VITE_API_URL=http://localhost:8000/api
     container_name: agentic-ui
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8000/api
+      - VITE_API_URL=http://localhost:8000
       - VITE_ENVIRONMENT=development
     volumes:
       - ./apps/ui/src:/app/src:ro

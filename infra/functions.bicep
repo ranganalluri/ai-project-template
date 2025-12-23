@@ -25,18 +25,18 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2022-03-01'
 }
 
 resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
-  name: '${resourceNamePrefix}-api-${resourceIndexSuffix}'
+  name: '${resourceNamePrefix}-functions-${resourceIndexSuffix}'
   location: location
   tags: {
     'azd-env-name': environmentName
-    'azd-service-name': 'api'
+    'azd-service-name': 'functions'
   }
   properties: {
     environmentId: containerAppsEnvironment.id
     configuration: {
       ingress: {
         external: true
-        targetPort: 8000
+        targetPort: 80
         transport: 'http'
       }
       registries: [
@@ -73,7 +73,7 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
 }
 
 // Outputs
-output API_FQDN string = api.properties.configuration.ingress.fqdn
-output API_URL string = 'https://${api.properties.configuration.ingress.fqdn}'
-output API_ID string = api.id
-output API_NAME string = api.name
+output FUNCTIONS_FQDN string = api.properties.configuration.ingress.fqdn
+output FUNCTIONS_URL string = 'https://${api.properties.configuration.ingress.fqdn}'
+output FUNCTIONS_ID string = api.id
+output FUNCTIONS_NAME string = api.name
