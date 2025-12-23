@@ -47,7 +47,14 @@ jobs:
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
-
+        
+      - name: Set azd env values (non-interactive)
+        shell: bash
+        run: |
+          azd env new "$AZURE_ENV_NAME" --no-prompt || true
+          azd env set AZURE_LOCATION "$AZURE_LOCATION"
+          azd env set AZURE_RESOURCE_GROUP "$AZURE_RESOURCE_GROUP"
+          
       - name: Provision Infrastructure
         run: azd provision --no-prompt
         env:
