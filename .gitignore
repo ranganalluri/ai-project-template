@@ -37,7 +37,7 @@ dmypy.json
 
 # uv
 .venv/
-uv.lock
+
 
 # Node.js / npm / yarn
 node_modules/
