@@ -17,6 +17,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: staging
     # azd build-in variables.
     # This variables are always set by `azd pipeline config`
     # You can set them as global env (apply to all steps) or you can add them to individual steps' environment
