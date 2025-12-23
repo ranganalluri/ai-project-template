@@ -48,12 +48,16 @@ jobs:
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
         
-      - name: Set azd env values (non-interactive)
-        shell: bash
+      - name: Creating azure environment
         run: |
-          azd env new "$AZURE_ENV_NAME" --no-prompt || true
-          azd env set AZURE_LOCATION "$AZURE_LOCATION"
-          azd env set AZURE_RESOURCE_GROUP "$AZURE_RESOURCE_GROUP"
+          if ! azd env list --output tsv | awk '{print $1}' | grep -qx ${{vars.AZURE_ENV_NAME}}; then
+            azd env new "${{vars.AZURE_ENV_NAME}}" --location "${{vars.AZURE_LOCATION}}" --subscription "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+            azd env set INDEX_NUMBER ${{vars.INDEX_NUMBER}}
+            azd env set AZURE_LOCATION "${{vars.AZURE_LOCATION}}"
+            azd env set AZURE_RESOURCE_GROUP "${{vars.AZURE_RESOURCE_GROUP}}"
+          else
+            azd env select "${{vars.AZURE_ENV_NAME}}"
+          fi
           
       - name: Provision Infrastructure
         run: azd provision --no-prompt
