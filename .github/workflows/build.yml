@@ -51,14 +51,26 @@ jobs:
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
           
-          # Also authenticate Azure CLI using the same federated credentials
+          # Get the federated token from GitHub Actions and use it to authenticate Azure CLI
+          $token = $Env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+          $tokenFilePath = "/tmp/token.jwt"
+          
+          # Save token to file for Azure CLI
+          $token | Out-File -FilePath $tokenFilePath -NoNewline
+          
+          # Authenticate Azure CLI using federated token
           az login `
             --service-principal `
             -u "$Env:AZURE_CLIENT_ID" `
             -t "$Env:AZURE_TENANT_ID" `
-            --federated-token "$Env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" `
-            --allow-no-subscriptions
+            --federated-token (Get-Content $tokenFilePath -Raw)
+          
+          # Set the subscription
+          az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
         shell: pwsh
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         
       - name: Create or Select AZD Environment
         run: |
