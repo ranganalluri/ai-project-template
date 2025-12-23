@@ -1,11 +1,17 @@
 /// <reference types="vite/client" />
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
-console.log("API URL:", import.meta.env.VITE_API_URL);
+
+declare global {
+  interface Window { ENV?: Record<string, string> }
+}
+
+export const API_BASE_URL = window.ENV?.VITE_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+console.log("API URL:", API_BASE_URL);
 export class ApiClient {
   private baseUrl: string
 
   constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl
+    this.baseUrl = baseUrl + '/api'
   }
 
   async get<T>(endpoint: string): Promise<T> {

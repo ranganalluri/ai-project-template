@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus2"
+    },
+    "companyName": {
+      "value": "rr"
+    },
+    "regionCode": {
+      "value": "eu1"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "index": {
+      "value": "02"
+    },
+    "containerRegistrySku": {
+      "value": "Basic"
+    },
+    "containerRegistryAdminEnabled": {
+      "value": true
+    }
+  }
+}

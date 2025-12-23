@@ -1,0 +1,63 @@
+name: ai-project
+metadata:
+  description: Agentic AI Platform with FastAPI Backend and React Frontend
+  version: 0.1.0
+
+# The services section defines the services in your application
+services:
+  api:
+    project: .
+    language: python
+    docker:
+      path: ./apps/api/Dockerfile
+    host: containerapp
+    deploy:
+      bicep: ./infra/api.bicep
+      # parameters: ./infra/api.parameters.json
+    
+  functions:
+    project: .
+    language: python
+    docker:
+      path: ./apps/functions/Dockerfile
+      context: .
+    host: containerapp
+    
+  ui:
+    project: .
+    language: js
+    docker:
+      path: ./apps/ui/Dockerfile
+      context: .
+    host: containerapp
+    deploy:
+      bicep: infra/ui.bicep
+    hooks:
+      postdeploy:
+        shell: pwsh
+        run: ./hooks/ui-postdeploy.ps1
+
+# Infrastructure as Code definition
+infra:
+  path: ./infra
+  module: main
+
+# Hooks for post-provision operations
+hooks:
+  postprovision:
+    shell: pwsh
+    run: ./hooks/postprovision.ps1
+  predeploy:
+    shell: pwsh
+    run: ./hooks/predeploy.ps1
+  postdeploy:
+    shell: pwsh
+    run: ./hooks/postdeploy.ps1
+
+# Environment variables to be set when the application is running
+env:
+  # These will be passed to the bicep deployment
+  AZURE_CONTAINER_REGISTRY_ENDPOINT: ${AZURE_CONTAINER_REGISTRY_ENDPOINT}
+  REGISTRY_NAME: ${AZURE_CONTAINER_REGISTRY_NAME}
+  REGISTRY_LOGIN_SERVER: ${AZURE_CONTAINER_REGISTRY_ENDPOINT}
+  BUILD_TAG: latest
