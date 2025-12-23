@@ -11,9 +11,7 @@
     "regionCode": {
       "value": "eu1"
     },
-    "environment": {
-      "value": "dev"
-    },
+    "environment": { "value": "${AZURE_ENV_NAME}" },
     "index": {
       "value": "02"
     },

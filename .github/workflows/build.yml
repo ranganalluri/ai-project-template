@@ -25,8 +25,13 @@ jobs:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_ENV_NAME: ${{ vars.ENVIRONMENT }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      INDEX_NUMBER: ${{ vars.INDEX_NUMBER }}
+      AZURE_CONTAINER_REGISTRY_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+      AZURE_CONTAINER_REGISTRY_ENDPOINT: ${{ vars.AZURE_CONTAINER_REGISTRY_ENDPOINT }}
+      BUILD_TAG: ${{ github.sha }}
       ## Define the additional variables or secrets that are required globally (provision and deploy)
     steps:
       - name: Checkout
@@ -45,17 +50,54 @@ jobs:
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
+        
+      - name: Create or Select AZD Environment
+        run: |
+          # Check if environment exists
+          $envExists = azd env list --output json | ConvertFrom-Json | Where-Object { $_.name -eq "${{ env.AZURE_ENV_NAME }}" }
+          
+          if ($null -eq $envExists) {
+            Write-Host "Creating new AZD environment: ${{ env.AZURE_ENV_NAME }}"
+            azd env new "${{ env.AZURE_ENV_NAME }}" --location "${{ env.AZURE_LOCATION }}" --subscription "${{ env.AZURE_SUBSCRIPTION_ID }}"
+          } else {
+            Write-Host "Selecting existing AZD environment: ${{ env.AZURE_ENV_NAME }}"
+            azd env select "${{ env.AZURE_ENV_NAME }}"
+          }
+        shell: pwsh
+
+      - name: Set AZD Environment Variables
+        run: |
+          Write-Host "Setting AZD environment variables..."
+          azd env set AZURE_SUBSCRIPTION_ID "${{ env.AZURE_SUBSCRIPTION_ID }}"
+          azd env set AZURE_LOCATION "${{ env.AZURE_LOCATION }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ env.AZURE_RESOURCE_GROUP }}"
+          azd env set INDEX_NUMBER "${{ env.INDEX_NUMBER }}"
+          azd env set AZURE_CONTAINER_REGISTRY_NAME "${{ env.AZURE_CONTAINER_REGISTRY_NAME }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ env.AZURE_CONTAINER_REGISTRY_ENDPOINT }}"
+          azd env set BUILD_TAG "${{ env.BUILD_TAG }}"
+          Write-Host "✓ Environment variables set successfully"
+        shell: pwsh
 
       - name: Provision Infrastructure
-        run: azd provision --no-prompt
+        run: |
+          Write-Host "Provisioning Azure infrastructure..."
+          azd provision --no-prompt
         env:
-          # uncomment this if you are using infrastructure parameters
           AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-          ## Define the additional variables or secrets that are required only for provision
+        shell: pwsh
 
       - name: Deploy Application
-        run: azd deploy --no-prompt
-        # env:
-        ## Define the additional variables or secrets that are required only for deploy
+        run: |
+          Write-Host "Deploying application..."
+          azd deploy --no-prompt
+        shell: pwsh
 
+      - name: Show Deployment Status
+        run: |
+          Write-Host "✅ Deployment completed!"
+          Write-Host "Environment: ${{ env.AZURE_ENV_NAME }}"
+          Write-Host "Location: ${{ env.AZURE_LOCATION }}"
+          Write-Host "Resource Group: ${{ env.AZURE_RESOURCE_GROUP }}"
+          Write-Host "Commit SHA: ${{ github.sha }}"
+        shell: pwsh
 

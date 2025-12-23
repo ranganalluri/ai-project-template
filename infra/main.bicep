@@ -2,7 +2,7 @@
 targetScope = 'resourceGroup'
 
 // Resource naming parameters
-param location string = 'eastus2'
+param location string = resourceGroup().location
 param companyName string = 'contoso'
 param regionCode string = 'eu1'
 param environment string = 'dev'
