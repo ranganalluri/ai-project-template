@@ -1,4 +1,4 @@
-name: Provision and Deploy with AZD
+name: Deploy
 
 on:
   workflow_dispatch:
