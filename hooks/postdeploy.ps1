@@ -14,7 +14,6 @@ $RESOURCE_GROUP = azd env get-value AZURE_RESOURCE_GROUP
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Write-Host "Fetching deployed service details..." -ForegroundColor Green
-Start-Sleep -Seconds 50
 
 # Execute the UI post-deploy script
 $uiPostdeployPath = Join-Path $scriptDir "ui-postdeploy.ps1"
