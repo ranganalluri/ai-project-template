@@ -27,6 +27,7 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       AZURE_ENV_NAME: ${{ vars.ENVIRONMENT }}
       AZURE_LOCATION: 'eastus2'
+      AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ vars.AZD_INITIAL_ENVIRONMENT_CONFIG}}
       ## Define the additional variables or secrets that are required globally (provision and deploy)
     steps:
       - name: Checkout
