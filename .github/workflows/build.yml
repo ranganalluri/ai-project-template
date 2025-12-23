@@ -78,6 +78,16 @@ jobs:
           Write-Host "✓ Environment variables set successfully"
         shell: pwsh
 
+      - name: Create Azure Resource Group
+        run: |
+          Write-Host "Creating resource group: ${{ env.AZURE_RESOURCE_GROUP }}"
+          az group create `
+            --name "${{ env.AZURE_RESOURCE_GROUP }}" `
+            --location "${{ env.AZURE_LOCATION }}" `
+            --subscription "${{ env.AZURE_SUBSCRIPTION_ID }}"
+          Write-Host "✓ Resource group created/verified"
+        shell: pwsh
+
       - name: Provision Infrastructure
         run: |
           Write-Host "Provisioning Azure infrastructure..."
