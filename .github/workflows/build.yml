@@ -50,7 +50,37 @@ jobs:
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
-        
+      
+      - name: Log in with Azure (AZ login)
+        uses: azure/login@v1
+        if: ${{ env.AZURE_CLIENT_ID == '' }}
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Verify Azure Login
+        run: |
+          Write-Host "Verifying Azure login..."
+          az account show
+        shell: pwsh
+      
+      - name: Create resource group if not exists
+        run: |
+          $rgName = "${{ env.AZURE_RESOURCE_GROUP }}"
+          $location = "${{ env.AZURE_LOCATION }}"
+          
+          $rg = az group show --name $rgName --output json | ConvertFrom-Json
+          
+          if ($null -eq $rg) {
+            Write-Host "Resource group '$rgName' does not exist. Creating..."
+            az group create --name $rgName --location $location
+            Write-Host "✓ Resource group '$rgName' created successfully."
+          } else {
+            Write-Host "✓ Resource group '$rgName' already exists."
+          }
+        shell: pwsh
+
       - name: Create or Select AZD Environment
         run: |
           # Check if environment exists
@@ -109,7 +139,7 @@ jobs:
             Pop-Location
           }
         shell: pwsh
-        
+
       - name: Deployment Complete
         run: |
           Write-Host "✅ Deployment completed!"
