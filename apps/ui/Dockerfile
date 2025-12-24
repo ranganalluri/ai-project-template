@@ -32,10 +32,12 @@ RUN npm install -g serve
 COPY --from=builder /build/apps/ui/dist ./dist
 
 # Copy the env config generation script
-COPY apps/ui/generate-env-config.sh ./generate-env-config.sh
-RUN chmod +x ./generate-env-config.sh
+COPY apps/ui/generate-env-config.sh /app/generate-env-config.sh
+# Fix line endings (CRLF -> LF) and ensure executable
+RUN sed -i 's/\r$//' /app/generate-env-config.sh && \
+    chmod +x /app/generate-env-config.sh
 
 EXPOSE 5173
 
 # Generate runtime config and serve
-CMD ["sh", "-c", "./generate-env-config.sh && serve -s dist -l 5173"]
+CMD ["sh", "-c", "/app/generate-env-config.sh && serve -s dist -l 5173"]

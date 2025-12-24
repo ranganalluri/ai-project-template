@@ -1,6 +1,9 @@
 #!/bin/sh
 # Generate runtime environment configuration from environment variables
 
+# Ensure dist directory exists
+mkdir -p /app/dist
+
 cat > /app/dist/env-config.js <<EOF
 // Auto-generated runtime configuration
 window.ENV = {
