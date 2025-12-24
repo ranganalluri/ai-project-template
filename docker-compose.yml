@@ -84,43 +84,43 @@ services:
       retries: 3
       start_period: 40s
 
-  cosmos:
-    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
-    container_name: agentic-cosmos
-    ports:
-      - "8081:8081"
-    environment:
-      - AZURE_COSMOS_EMULATOR_PARTITION_COUNT=4
-      - AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE=false
-      - AZURE_COSMOS_EMULATOR_DEFAULT_PARTITION_COUNT=4
-    volumes:
-      - cosmos_data:/data/db
-    networks:
-      - agentic
-    healthcheck:
-      test: ["CMD", "curl", "-f", "https://localhost:8081/_explorer/index.html"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+  # cosmos:
+  #   image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+  #   container_name: agentic-cosmos
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     - AZURE_COSMOS_EMULATOR_PARTITION_COUNT=4
+  #     - AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE=false
+  #     - AZURE_COSMOS_EMULATOR_DEFAULT_PARTITION_COUNT=4
+  #   volumes:
+  #     - cosmos_data:/data/db
+  #   networks:
+  #     - agentic
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "https://localhost:8081/_explorer/index.html"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 60s
 
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:latest
-    container_name: agentic-azurite
-    ports:
-      - "10000:10000"
-      - "10001:10001"
-      - "10002:10002"
-    volumes:
-      - azurite_data:/data
-    networks:
-      - agentic
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:10000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+  # azurite:
+  #   image: mcr.microsoft.com/azure-storage/azurite:latest
+  #   container_name: agentic-azurite
+  #   ports:
+  #     - "10000:10000"
+  #     - "10001:10001"
+  #     - "10002:10002"
+  #   volumes:
+  #     - azurite_data:/data
+  #   networks:
+  #     - agentic
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:10000/"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 30s
 
 networks:
   agentic:
