@@ -92,7 +92,25 @@ jobs:
           azd deploy --no-prompt
         shell: pwsh
 
-      - name: Show Deployment Status
+      - name: Run Post-Deploy Hook
+        if: always()
+        run: |
+          Write-Host "Running post-deploy hook..." -ForegroundColor Cyan
+          # Ensure we're in the correct directory
+          Push-Location ${{ github.workspace }}
+          
+          try {
+            # Run the postdeploy hook
+            & ./hooks/postdeploy.ps1
+          } catch {
+            Write-Host "Error running post-deploy hook: $_" -ForegroundColor Red
+            exit 1
+          } finally {
+            Pop-Location
+          }
+        shell: pwsh
+        
+      - name: Deployment Complete
         run: |
           Write-Host "✅ Deployment completed!"
           Write-Host "Environment: ${{ env.AZURE_ENV_NAME }}"
