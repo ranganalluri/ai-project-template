@@ -9,6 +9,7 @@
     "imageName": { "value": "${SERVICE_API_IMAGE_NAME}" },
     "identityId": { "value": "${MANAGED_IDENTITY_ID}" },
     "resourceNamePrefix": { "value": "${RESOURCE_NAME_PREFIX}" },
-    "resourceIndexSuffix": { "value": "${RESOURCE_INDEX_SUFFIX}" }
+    "resourceIndexSuffix": { "value": "${RESOURCE_INDEX_SUFFIX}" },
+    "keyVaultName": { "value": "${KEY_VAULT_NAME}" }
   }
 }

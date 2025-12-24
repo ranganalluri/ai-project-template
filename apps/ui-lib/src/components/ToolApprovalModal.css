@@ -1,0 +1,95 @@
+.tool-approval-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.tool-approval-modal {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.tool-approval-modal-title {
+  margin: 0 0 16px 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.tool-approval-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tool-approval-modal-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.tool-approval-modal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-approval-modal-arguments {
+  background: white;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0;
+  font-family: 'Courier New', monospace;
+}
+
+.tool-approval-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.tool-approval-modal-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.tool-approval-modal-button-approve {
+  background: #4caf50;
+  color: white;
+}
+
+.tool-approval-modal-button-approve:hover {
+  background: #45a049;
+}
+
+.tool-approval-modal-button-reject {
+  background: #f44336;
+  color: white;
+}
+
+.tool-approval-modal-button-reject:hover {
+  background: #da190b;
+}
+

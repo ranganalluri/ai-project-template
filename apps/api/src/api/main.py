@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from api.config import get_settings
 from api.middleware import setup_middleware
-from api.routes import api_router
+from api.routes import api_router, chat_router_no_prefix
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +45,7 @@ setup_middleware(app, ui_url=settings.ui_url)
 
 # Include routers
 app.include_router(api_router)
+app.include_router(chat_router_no_prefix)
 
 
 if __name__ == "__main__":

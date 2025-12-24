@@ -1,0 +1,67 @@
+"""Azure AI Foundry client service."""
+
+import logging
+from typing import Any
+
+from azure.ai.projects import AIProjectClient
+from azure.identity import DefaultAzureCredential
+from openai import OpenAI
+
+from api.config import Settings
+
+logger = logging.getLogger(__name__)
+
+
+class FoundryClient:
+    """Client for Azure AI Foundry integration."""
+
+    def __init__(self, settings: Settings) -> None:
+        """Initialize Foundry client.
+
+        Args:
+            settings: Application settings
+        """
+        self.settings = settings
+        self._client: OpenAI | None = None
+        self._project_client: AIProjectClient | None = None
+
+    def _get_project_client(self) -> AIProjectClient:
+        """Get or create AI Project client.
+
+        Returns:
+            AIProjectClient instance
+        """
+        if self._project_client is None:
+            if not self.settings.foundry_endpoint:
+                raise ValueError("FOUNDRY_ENDPOINT is not set")
+
+            credential = DefaultAzureCredential()
+            self._project_client = AIProjectClient(
+                endpoint=self.settings.foundry_endpoint,
+                credential=credential
+            )
+            logger.info("AI Project client initialized")
+
+        return self._project_client
+
+    def get_openai_client(self) -> OpenAI:
+        """Get authenticated OpenAI client from Foundry project.
+
+        Returns:
+            OpenAI client instance
+        """
+        if self._client is None:
+            project_client = self._get_project_client()
+            self._client = project_client.get_openai_client()
+            logger.info("OpenAI client initialized from Foundry project")
+
+        return self._client
+
+    def is_configured(self) -> bool:
+        """Check if Foundry is properly configured.
+
+        Returns:
+            True if configuration is present
+        """
+        return bool(self.settings.foundry_endpoint)
+
