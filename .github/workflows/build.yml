@@ -41,23 +41,19 @@ jobs:
       - name: Install azd
         uses: Azure/setup-azd@v2.1.0
 
-      # azd set up Federated Credential by default. You can remove this step if you are using Client Credentials
+      # Log in with Azure using federated credentials
       - name: Log in with Azure (Federated Credentials)
-        if: ${{ env.AZURE_CLIENT_ID != '' }}
-        run: |
-          azd auth login `
-            --client-id "$Env:AZURE_CLIENT_ID" `
-            --federated-credential-provider "github" `
-            --tenant-id "$Env:AZURE_TENANT_ID"
-        shell: pwsh
-      
-      - name: Log in with Azure (AZ login)
         uses: azure/login@v1
-        if: ${{ env.AZURE_CLIENT_ID == '' }}
         with:
           client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      
+      # Configure azd to use Azure CLI authentication
+      - name: Configure AZD to use Azure CLI Auth
+        run: |
+          azd config set auth.useAzCliAuth "true"
+        shell: pwsh
       
       - name: Verify Azure Login
         run: |
