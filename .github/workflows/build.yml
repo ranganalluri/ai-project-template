@@ -41,16 +41,42 @@ jobs:
       - name: Install azd
         uses: Azure/setup-azd@v2.1.0
 
-      # azd set up Federated Credential by default. You can remove this step if you are using Client Credentials
+      # Log in with Azure using federated credentials
       - name: Log in with Azure (Federated Credentials)
-        if: ${{ env.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@v1
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      
+      # Configure azd to use Azure CLI authentication
+      - name: Configure AZD to use Azure CLI Auth
         run: |
-          azd auth login `
-            --client-id "$Env:AZURE_CLIENT_ID" `
-            --federated-credential-provider "github" `
-            --tenant-id "$Env:AZURE_TENANT_ID"
+          azd config set auth.useAzCliAuth "true"
         shell: pwsh
-        
+      
+      - name: Verify Azure Login
+        run: |
+          Write-Host "Verifying Azure login..."
+          az account show
+        shell: pwsh
+      
+      - name: Create resource group if not exists
+        run: |
+          $rgName = "${{ env.AZURE_RESOURCE_GROUP }}"
+          $location = "${{ env.AZURE_LOCATION }}"
+          
+          $rg = az group show --name $rgName --output json | ConvertFrom-Json
+          
+          if ($null -eq $rg) {
+            Write-Host "Resource group '$rgName' does not exist. Creating..."
+            az group create --name $rgName --location $location
+            Write-Host "✓ Resource group '$rgName' created successfully."
+          } else {
+            Write-Host "✓ Resource group '$rgName' already exists."
+          }
+        shell: pwsh
+
       - name: Create or Select AZD Environment
         run: |
           # Check if environment exists
@@ -92,7 +118,25 @@ jobs:
           azd deploy --no-prompt
         shell: pwsh
 
-      - name: Show Deployment Status
+      - name: Run Post-Deploy Hook
+        if: always()
+        run: |
+          Write-Host "Running post-deploy hook..." -ForegroundColor Cyan
+          # Ensure we're in the correct directory
+          Push-Location ${{ github.workspace }}
+          
+          try {
+            # Run the postdeploy hook
+            & ./hooks/postdeploy.ps1
+          } catch {
+            Write-Host "Error running post-deploy hook: $_" -ForegroundColor Red
+            exit 1
+          } finally {
+            Pop-Location
+          }
+        shell: pwsh
+
+      - name: Deployment Complete
         run: |
           Write-Host "✅ Deployment completed!"
           Write-Host "Environment: ${{ env.AZURE_ENV_NAME }}"

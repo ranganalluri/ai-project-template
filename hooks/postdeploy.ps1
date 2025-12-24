@@ -10,10 +10,19 @@ Write-Host "Running post-deploy hook for service: $ServiceName" -ForegroundColor
 
 $RESOURCE_GROUP = azd env get-value AZURE_RESOURCE_GROUP
 
+# Get the directory where this script is located
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Write-Host "Fetching deployed service details..." -ForegroundColor Green
-# Start-Sleep -Seconds 50
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/ui-postdeploy.ps1"
+
+# Execute the UI post-deploy script
+$uiPostdeployPath = Join-Path $scriptDir "ui-postdeploy.ps1"
+if (Test-Path $uiPostdeployPath) {
+    Write-Host "Running UI post-deploy: $uiPostdeployPath" -ForegroundColor Yellow
+    & $uiPostdeployPath
+} else {
+    Write-Host "Warning: UI post-deploy script not found at $uiPostdeployPath" -ForegroundColor Yellow
+}
 
 if ($ServiceName) {
     Write-Host "Service $ServiceName deployed successfully" -ForegroundColor Green
