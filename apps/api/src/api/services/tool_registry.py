@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -17,44 +17,6 @@ class ToolRegistry:
             "search_docs": self._search_docs,
             "get_time": self._get_time,
         }
-
-    def get_tools_schema(self) -> list[dict[str, Any]]:
-        """Get OpenAI tools schema.
-
-        Returns:
-            List of tool definitions
-        """
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "search_docs",
-                    "description": "Search documentation for a query",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Search query",
-                            },
-                        },
-                        "required": ["query"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_time",
-                    "description": "Get the current time",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                    },
-                },
-            },
-        ]
 
     def get_responses_api_tools_schema(self) -> list[dict[str, Any]]:
         """Get tools schema for Responses API (Azure AI SDK 2.0.0b2).
@@ -143,7 +105,7 @@ class ToolRegistry:
             Current time
         """
         return {
-            "time": datetime.utcnow().isoformat(),
+            "time": datetime.now(UTC).isoformat(),
             "timezone": "UTC",
         }
 

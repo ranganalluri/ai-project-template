@@ -1,17 +1,11 @@
 """User API routes."""
 
-from api.models.user import User
-from api.services.user_service import UserService
+from api.services import get_user_service
+from common.models.user import User
+from common.services.user_service import UserService
 from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-# Dependency for user service (singleton for in-memory demo)
-user_service = UserService()
-
-
-def get_user_service() -> UserService:
-    return user_service
 
 
 @router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)

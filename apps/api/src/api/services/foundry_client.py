@@ -34,9 +34,7 @@ class FoundryClient:
                 raise ValueError("FOUNDRY_ENDPOINT is not set")
 
             credential = DefaultAzureCredential()
-            self._project_client = AIProjectClient(
-                endpoint=self.settings.foundry_endpoint, credential=credential
-            )
+            self._project_client = AIProjectClient(endpoint=self.settings.foundry_endpoint, credential=credential)
             logger.info("AI Project client initialized")
 
         return self._project_client

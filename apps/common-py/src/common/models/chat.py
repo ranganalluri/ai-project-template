@@ -1,6 +1,6 @@
 """Chat-related Pydantic models."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -50,4 +50,4 @@ class RunStatus(BaseModel):
     run_id: str = Field(..., description="Run ID")
     status: str = Field(..., description="Run status: running, completed, cancelled, error")
     thread_id: str | None = Field(None, description="Thread ID")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Creation timestamp")

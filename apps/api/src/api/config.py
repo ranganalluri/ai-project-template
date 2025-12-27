@@ -1,6 +1,5 @@
 """Configuration management for the Agentic API."""
 
-import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,11 +14,6 @@ def _get_env_file_path() -> str:
     Returns:
         Path to the .env file
     """
-    # Check if ENV_FILE environment variable is set
-    env_file = os.getenv("ENV_FILE")
-    if env_file:
-        return env_file
-
     # Default to .env in the API project directory
     # This file is in apps/api/src/api/config.py
     # So we go up 3 levels to get to apps/api/
@@ -46,6 +40,10 @@ class Settings(BaseSettings):
     azure_cosmosdb_endpoint: str | None = None
     azure_cosmosdb_key: str | None = None
     database_name: str = "agentic"
+    cosmos_conversations_container: str = "conversations"
+    cosmos_runs_container: str = "runs"
+    cosmos_users_container: str = "users"
+    cosmos_files_container: str = "files"
 
     # OpenAI
     openai_api_key: str | None = None
@@ -66,6 +64,11 @@ class Settings(BaseSettings):
     agents_container: str = "agents"
     content_container: str = "content"
     catalog_container: str = "catalog"
+
+    # Azure Storage
+    azure_storage_account_name: str | None = None
+    azure_storage_account_key: str | None = None
+    azure_storage_container_name: str = "files"
 
     model_config = SettingsConfigDict(
         env_file=_get_env_file_path(),

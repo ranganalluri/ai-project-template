@@ -7,10 +7,10 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from api.config import Settings
-from api.models.chat import ChatMessage, ToolCall
-from api.services.chat_store import chat_store
 from api.services.foundry_client import FoundryClient
 from api.services.tool_registry import tool_registry
+from common.models.chat import ChatMessage, ToolCall
+from common.services.chat_store import ChatStore
 from openai.types.responses import EasyInputMessage, ResponseStreamEvent
 
 logger = logging.getLogger(__name__)
@@ -19,15 +19,22 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """Service for handling chat streaming with tool approval."""
 
-    def __init__(self, foundry_client: FoundryClient, settings: Settings) -> None:
+    def __init__(
+        self,
+        foundry_client: FoundryClient,
+        settings: Settings,
+        chat_store: ChatStore,
+    ) -> None:
         """Initialize chat service.
 
         Args:
             foundry_client: Foundry client instance
             settings: Application settings
+            chat_store: Chat store instance
         """
         self.foundry_client = foundry_client
         self.settings = settings
+        self.chat_store = chat_store
 
     async def stream_chat(
         self,
@@ -47,10 +54,8 @@ class ChatService:
         """
         try:
             # Check if cancelled
-            if chat_store.is_cancelled(run_id):
-                yield self._format_sse_event(
-                    "error", {"runId": run_id, "message": "Run was cancelled"}
-                )
+            if self.chat_store.is_cancelled(run_id):
+                yield self._format_sse_event("error", {"runId": run_id, "message": "Run was cancelled"})
                 return
 
             # Get OpenAI client
@@ -76,10 +81,8 @@ class ChatService:
             current_function_arguments: dict[str, str] = {}  # item_id -> accumulated arguments
 
             async for event in self._async_stream(stream):
-                if chat_store.is_cancelled(run_id):
-                    yield self._format_sse_event(
-                        "error", {"runId": run_id, "message": "Run was cancelled"}
-                    )
+                if self.chat_store.is_cancelled(run_id):
+                    yield self._format_sse_event("error", {"runId": run_id, "message": "Run was cancelled"})
                     return
 
                 # Handle different event types from Responses API
@@ -158,7 +161,7 @@ class ChatService:
             # Handle completed message
             if current_content:
                 message = ChatMessage(role="assistant", content=current_content)
-                chat_store.add_message(run_id, message)
+                self.chat_store.add_message(run_id, message)
                 yield self._format_sse_event(
                     "message_done",
                     {"runId": run_id, "message": {"role": "assistant", "content": current_content}},
@@ -174,7 +177,7 @@ class ChatService:
                     )
 
                     # Add to pending tool calls
-                    chat_store.add_pending_tool_call(run_id, tool_call)
+                    self.chat_store.add_pending_tool_call(run_id, tool_call)
 
                     # Emit tool call requested event
                     yield self._format_sse_event(
@@ -196,12 +199,10 @@ class ChatService:
                     while approval is None and wait_time < max_wait:
                         await asyncio.sleep(0.5)
                         wait_time += 0.5
-                        approval = chat_store.get_tool_call_approval(run_id, tool_call.id)
+                        approval = self.chat_store.get_tool_call_approval(run_id, tool_call.id)
 
-                        if chat_store.is_cancelled(run_id):
-                            yield self._format_sse_event(
-                                "error", {"runId": run_id, "message": "Run was cancelled"}
-                            )
+                        if self.chat_store.is_cancelled(run_id):
+                            yield self._format_sse_event("error", {"runId": run_id, "message": "Run was cancelled"})
                             return
 
                     if approval is None:
@@ -211,9 +212,7 @@ class ChatService:
                     if approval:
                         # Execute tool
                         try:
-                            result = await tool_registry.execute_tool(
-                                tool_call.name, tool_call.arguments_json
-                            )
+                            result = await tool_registry.execute_tool(tool_call.name, tool_call.arguments_json)
                             result_json = json.dumps(result)
 
                             # Add tool result to messages with tool_call_id
@@ -223,7 +222,7 @@ class ChatService:
                             )
                             # Store tool_call_id in message for OpenAI format
                             setattr(tool_result_message, "tool_call_id", tool_call.id)
-                            chat_store.add_message(run_id, tool_result_message)
+                            self.chat_store.add_message(run_id, tool_result_message)
 
                             # Emit tool call result
                             yield self._format_sse_event(
@@ -236,11 +235,9 @@ class ChatService:
                             )
 
                             # Continue with tool result - make another API call with updated messages
-                            updated_messages = chat_store.get_messages(run_id)
+                            updated_messages = self.chat_store.get_messages(run_id)
                             # Convert to Responses API format for the next call
-                            responses_messages2 = self._convert_messages_for_responses_api(
-                                updated_messages, file_ids
-                            )
+                            responses_messages2 = self._convert_messages_for_responses_api(updated_messages, file_ids)
 
                             # Make another streaming call with tool result using Responses API
                             stream2 = client.responses.create(
@@ -256,7 +253,7 @@ class ChatService:
                             current_function_arguments2: dict[str, str] = {}
 
                             async for event2 in self._async_stream(stream2):
-                                if chat_store.is_cancelled(run_id):
+                                if self.chat_store.is_cancelled(run_id):
                                     yield self._format_sse_event(
                                         "error", {"runId": run_id, "message": "Run was cancelled"}
                                     )
@@ -309,9 +306,7 @@ class ChatService:
                                                 }
                                 elif event_type2 == "response.error":
                                     error_msg2 = getattr(event2, "message", "Unknown error")
-                                    yield self._format_sse_event(
-                                        "error", {"runId": run_id, "message": error_msg2}
-                                    )
+                                    yield self._format_sse_event("error", {"runId": run_id, "message": error_msg2})
                                     return
                                 elif event_type2 == "response.completed":
                                     break
@@ -319,7 +314,7 @@ class ChatService:
                             # Handle completed message from tool result
                             if current_content2:
                                 message2 = ChatMessage(role="assistant", content=current_content2)
-                                chat_store.add_message(run_id, message2)
+                                self.chat_store.add_message(run_id, message2)
                                 yield self._format_sse_event(
                                     "message_done",
                                     {
@@ -356,17 +351,15 @@ class ChatService:
                         )
 
             # Mark run as done
-            chat_store.complete_run(run_id)
+            self.chat_store.complete_run(run_id)
             yield self._format_sse_event("done", {"runId": run_id})
 
         except Exception as e:
             logger.error(f"Error in stream_chat: {e}", exc_info=True)
-            chat_store.error_run(run_id)
+            self.chat_store.error_run(run_id)
             yield self._format_sse_event("error", {"runId": run_id, "message": str(e)})
 
-    def _convert_messages(
-        self, messages: list[ChatMessage], file_ids: list[str]
-    ) -> list[dict[str, Any]]:
+    def _convert_messages(self, messages: list[ChatMessage], file_ids: list[str]) -> list[dict[str, Any]]:
         """Convert messages to OpenAI format.
 
         Args:

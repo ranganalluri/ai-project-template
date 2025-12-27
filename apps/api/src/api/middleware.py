@@ -17,9 +17,7 @@ def setup_middleware(app: FastAPI, ui_url: str = "http://localhost:5173") -> Non
         ui_url: URL of the UI application for CORS
     """
     # Trust proxy headers for HTTPS behind Azure Container Apps
-    app.add_middleware(
-        TrustedHostMiddleware, allowed_hosts=["*"]  # Container Apps handles host validation
-    )
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])  # Container Apps handles host validation
 
     # CORS middleware - support both HTTP (local) and HTTPS (production)
     allowed_origins = [

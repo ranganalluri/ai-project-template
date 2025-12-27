@@ -2,7 +2,7 @@
 
 from typing import ClassVar
 
-from api.models.user import User
+from common.models.user import User
 
 
 class UserService:

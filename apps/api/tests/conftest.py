@@ -14,8 +14,6 @@ if _SRC_PATH not in sys.path:
     sys.path.insert(0, _SRC_PATH)
 
 
-
-
 @pytest.fixture
 def client() -> TestClient:
     """Create a FastAPI test client."""

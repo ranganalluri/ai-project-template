@@ -2,13 +2,14 @@
 
 import logging
 import uuid
-from pathlib import Path
 
 from api.config import Settings, get_settings
-from api.models.chat import ChatRequest, FileUploadResponse, ToolApprovalRequest
+from api.services import get_chat_store, get_file_storage
 from api.services.chat_service import ChatService
-from api.services.chat_store import chat_store
 from api.services.foundry_client import FoundryClient
+from common.models.chat import ChatRequest, FileUploadResponse, ToolApprovalRequest
+from common.services.chat_store import ChatStore
+from common.services.file_storage import FileStorage
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi import File as FastAPIFile
 from fastapi.responses import StreamingResponse
@@ -16,10 +17,6 @@ from fastapi.responses import StreamingResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1", tags=["chat"])
-
-# Ensure uploads directory exists
-UPLOADS_DIR = Path("./data/uploads")
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_foundry_client(settings: Settings = Depends(get_settings)) -> FoundryClient:
@@ -37,27 +34,33 @@ def get_foundry_client(settings: Settings = Depends(get_settings)) -> FoundryCli
 def get_chat_service(
     foundry_client: FoundryClient = Depends(get_foundry_client),
     settings: Settings = Depends(get_settings),
+    chat_store: ChatStore = Depends(get_chat_store),
 ) -> ChatService:
     """Get chat service dependency.
 
     Args:
         foundry_client: Foundry client
         settings: Application settings
+        chat_store: Chat store
 
     Returns:
         ChatService instance
     """
-    return ChatService(foundry_client, settings)
+    return ChatService(foundry_client, settings, chat_store)
 
 
 @router.post("/files", response_model=FileUploadResponse)
 async def upload_file(
     file: UploadFile = FastAPIFile(...),
+    file_storage: FileStorage = Depends(get_file_storage),
+    chat_store: ChatStore = Depends(get_chat_store),
 ) -> FileUploadResponse:
     """Upload a file.
 
     Args:
         file: Uploaded file
+        file_storage: Blob Storage file service
+        chat_store: Chat store for metadata
 
     Returns:
         File upload response with file ID
@@ -66,11 +69,8 @@ async def upload_file(
         # Generate file ID
         file_id = str(uuid.uuid4())
 
-        # Save file
-        file_path = UPLOADS_DIR / file_id
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+        # Read file content
+        content = await file.read()
 
         # Store metadata
         file_data = FileUploadResponse(
@@ -79,13 +79,18 @@ async def upload_file(
             content_type=file.content_type or "application/octet-stream",
             size=len(content),
         )
+
+        # Upload to Blob Storage
+        file_storage.upload_file(file_id, content, file_data)
+
+        # Store metadata in Cosmos DB
         chat_store.store_file(file_id, file_data)
 
-        logger.info(f"Uploaded file {file_id}: {file.filename}")
+        logger.info("Uploaded file %s: %s", file_id, file.filename)
         return file_data
 
     except Exception as e:
-        logger.error(f"Error uploading file: {e}", exc_info=True)
+        logger.error("Error uploading file: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"File upload failed: {e!s}")
 
 
@@ -93,12 +98,14 @@ async def upload_file(
 async def stream_chat(
     request: ChatRequest,
     chat_service: ChatService = Depends(get_chat_service),
+    chat_store: ChatStore = Depends(get_chat_store),
 ) -> StreamingResponse:
     """Stream chat completion with SSE.
 
     Args:
         request: Chat request
         chat_service: Chat service
+        chat_store: Chat store
 
     Returns:
         StreamingResponse with SSE events
@@ -127,22 +134,26 @@ async def stream_chat(
         )
 
     except Exception as e:
-        logger.error(f"Error in stream_chat: {e}", exc_info=True)
+        logger.error("Error in stream_chat: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Chat streaming failed: {e!s}")
 
 
 @router.post("/runs/{run_id}/stop")
-async def stop_run(run_id: str) -> dict[str, str]:
+async def stop_run(
+    run_id: str,
+    chat_store: ChatStore = Depends(get_chat_store),
+) -> dict[str, str]:
     """Stop/cancel a running chat.
 
     Args:
         run_id: Run ID
+        chat_store: Chat store
 
     Returns:
         Success message
     """
     chat_store.cancel_run(run_id)
-    logger.info(f"Stopped run {run_id}")
+    logger.info("Stopped run %s", run_id)
     return {"status": "cancelled", "runId": run_id}
 
 
@@ -151,6 +162,7 @@ async def approve_tool_call(
     run_id: str,
     tool_call_id: str,
     request: ToolApprovalRequest,
+    chat_store: ChatStore = Depends(get_chat_store),
 ) -> dict[str, str]:
     """Approve or reject a tool call.
 
@@ -158,13 +170,17 @@ async def approve_tool_call(
         run_id: Run ID
         tool_call_id: Tool call ID
         request: Approval request
+        chat_store: Chat store
 
     Returns:
         Success message
     """
     chat_store.approve_tool_call(run_id, tool_call_id, request.approved)
     logger.info(
-        f"Tool call {tool_call_id} in run {run_id} {'approved' if request.approved else 'rejected'}"
+        "Tool call %s in run %s %s",
+        tool_call_id,
+        run_id,
+        "approved" if request.approved else "rejected",
     )
     return {
         "status": "approved" if request.approved else "rejected",
