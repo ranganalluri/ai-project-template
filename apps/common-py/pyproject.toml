@@ -28,14 +28,14 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/common"]
 
-[tool.black]
-line-length = 100
-target-version = ["py312"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-select = ["E", "F", "W", "I", "N", "UP", "RUF"]
+# [tool.black]
+# line-length = 100
+# target-version = ["py312"]
+# 
+# [tool.ruff]
+# line-length = 100
+# target-version = "py312"
+# select = ["E", "F", "W", "I", "N", "UP", "RUF"]
 
 [tool.mypy]
 python_version = "3.12"
