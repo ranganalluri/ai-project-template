@@ -36,9 +36,10 @@ export const Chat: React.FC = () => {
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentContentRef = useRef<string>('');
+  const toastIdCounterRef = useRef<number>(0);
 
   const addToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const id = Date.now().toString();
+    const id = `${Date.now()}-${++toastIdCounterRef.current}`;
     setToasts((prev) => [...prev, { id, message, type }]);
   }, []);
 
