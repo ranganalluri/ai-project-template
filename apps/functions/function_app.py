@@ -6,7 +6,7 @@ function definitions. The isolated worker process provides better performance an
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 import azure.functions as func
 
@@ -17,16 +17,16 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 @app.route(route="http_trigger", methods=["GET", "POST"])
 def http_trigger(req: func.HttpRequest) -> func.HttpResponse:
     """HTTP trigger function example.
-    
+
     This function demonstrates basic HTTP trigger functionality with GET and POST support.
-    
+
     Example:
         GET /api/http_trigger?name=Azure
         POST /api/http_trigger with JSON body: {"name": "Azure"}
-    
+
     Args:
         req: The HTTP request object containing parameters and body
-        
+
     Returns:
         HTTP response with JSON content
     """
@@ -34,7 +34,7 @@ def http_trigger(req: func.HttpRequest) -> func.HttpResponse:
 
     # Try to get name from query parameters
     name = req.params.get("name")
-    
+
     # If not in query params, try request body
     if not name:
         try:
@@ -46,7 +46,7 @@ def http_trigger(req: func.HttpRequest) -> func.HttpResponse:
     if name:
         response_data = {
             "message": f"Hello, {name}! This HTTP triggered function executed successfully.",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         return func.HttpResponse(
             json.dumps(response_data),
@@ -55,7 +55,7 @@ def http_trigger(req: func.HttpRequest) -> func.HttpResponse:
         )
     response_data = {
         "message": "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response.",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     return func.HttpResponse(
         json.dumps(response_data),
@@ -67,18 +67,18 @@ def http_trigger(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="health", methods=["GET"])
 def health_check(req: func.HttpRequest) -> func.HttpResponse:
     """Health check endpoint.
-    
+
     Returns:
         HTTP 200 response indicating the function app is healthy
     """
     logging.info("Health check endpoint called.")
-    
+
     health_data = {
         "status": "healthy",
         "service": "Azure Functions",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
-    
+
     return func.HttpResponse(
         json.dumps(health_data),
         status_code=200,
@@ -89,20 +89,18 @@ def health_check(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="echo", methods=["POST"])
 def echo(req: func.HttpRequest) -> func.HttpResponse:
     """Echo endpoint that returns the posted data.
-    
     Args:
         req: The HTTP request object
-        
     Returns:
         HTTP response echoing the request data
     """
     logging.info("Echo function processing request.")
-    
+
     try:
         req_body = req.get_json()
         response_data = {
             "echo": req_body,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "content_type": req.headers.get("Content-Type"),
         }
         return func.HttpResponse(

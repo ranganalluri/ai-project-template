@@ -3,15 +3,15 @@
 import asyncio
 import json
 import logging
-from typing import Any, AsyncGenerator
-
-from openai.types.responses import EasyInputMessage, ResponseStreamEvent
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from api.config import Settings
 from api.models.chat import ChatMessage, ToolCall
 from api.services.chat_store import chat_store
 from api.services.foundry_client import FoundryClient
 from api.services.tool_registry import tool_registry
+from openai.types.responses import EasyInputMessage, ResponseStreamEvent
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,9 @@ class ChatService:
         try:
             # Check if cancelled
             if chat_store.is_cancelled(run_id):
-                yield self._format_sse_event("error", {"runId": run_id, "message": "Run was cancelled"})
+                yield self._format_sse_event(
+                    "error", {"runId": run_id, "message": "Run was cancelled"}
+                )
                 return
 
             # Get OpenAI client
@@ -75,12 +77,14 @@ class ChatService:
 
             async for event in self._async_stream(stream):
                 if chat_store.is_cancelled(run_id):
-                    yield self._format_sse_event("error", {"runId": run_id, "message": "Run was cancelled"})
+                    yield self._format_sse_event(
+                        "error", {"runId": run_id, "message": "Run was cancelled"}
+                    )
                     return
 
                 # Handle different event types from Responses API
                 event_type = getattr(event, "type", None)
-                
+
                 # Handle text delta events
                 if event_type == "response.output_text.delta":
                     delta_text = getattr(event, "delta", "")
@@ -89,14 +93,14 @@ class ChatService:
                         "message_delta",
                         {"runId": run_id, "deltaText": delta_text},
                     )
-                
+
                 # Handle text done events
                 elif event_type == "response.output_text.done":
                     text = getattr(event, "text", "")
                     if text and not current_content:
                         # If we haven't accumulated content, use the done text
                         current_content = text
-                
+
                 # Handle function call arguments delta
                 elif event_type == "response.function_call_arguments.delta":
                     item_id = getattr(event, "item_id", "")
@@ -105,13 +109,13 @@ class ChatService:
                         if item_id not in current_function_arguments:
                             current_function_arguments[item_id] = ""
                         current_function_arguments[item_id] += delta
-                
+
                 # Handle function call arguments done
                 elif event_type == "response.function_call_arguments.done":
                     item_id = getattr(event, "item_id", "")
                     name = getattr(event, "name", "")
                     arguments = getattr(event, "arguments", "")
-                    
+
                     if item_id and name:
                         # Store the complete function call
                         current_tool_calls[item_id] = {
@@ -119,7 +123,7 @@ class ChatService:
                             "name": name,
                             "arguments": arguments,
                         }
-                
+
                 # Handle output item added (function calls)
                 elif event_type == "response.output_item.added":
                     # This contains the complete function call with call_id
@@ -131,7 +135,7 @@ class ChatService:
                             call_id = getattr(item, "call_id", "")
                             name = getattr(item, "name", "")
                             arguments = getattr(item, "arguments", "")
-                            
+
                             if item_id and name:
                                 # Update or create the tool call with the call_id
                                 current_tool_calls[item_id] = {
@@ -139,13 +143,13 @@ class ChatService:
                                     "name": name,
                                     "arguments": arguments,
                                 }
-                
+
                 # Handle errors
                 elif event_type == "response.error":
                     error_msg = getattr(event, "message", "Unknown error")
                     yield self._format_sse_event("error", {"runId": run_id, "message": error_msg})
                     return
-                
+
                 # Handle completion
                 elif event_type == "response.completed":
                     # Response is complete
@@ -195,7 +199,9 @@ class ChatService:
                         approval = chat_store.get_tool_call_approval(run_id, tool_call.id)
 
                         if chat_store.is_cancelled(run_id):
-                            yield self._format_sse_event("error", {"runId": run_id, "message": "Run was cancelled"})
+                            yield self._format_sse_event(
+                                "error", {"runId": run_id, "message": "Run was cancelled"}
+                            )
                             return
 
                     if approval is None:
@@ -205,7 +211,9 @@ class ChatService:
                     if approval:
                         # Execute tool
                         try:
-                            result = await tool_registry.execute_tool(tool_call.name, tool_call.arguments_json)
+                            result = await tool_registry.execute_tool(
+                                tool_call.name, tool_call.arguments_json
+                            )
                             result_json = json.dumps(result)
 
                             # Add tool result to messages with tool_call_id
@@ -230,8 +238,10 @@ class ChatService:
                             # Continue with tool result - make another API call with updated messages
                             updated_messages = chat_store.get_messages(run_id)
                             # Convert to Responses API format for the next call
-                            responses_messages2 = self._convert_messages_for_responses_api(updated_messages, file_ids)
-                            
+                            responses_messages2 = self._convert_messages_for_responses_api(
+                                updated_messages, file_ids
+                            )
+
                             # Make another streaming call with tool result using Responses API
                             stream2 = client.responses.create(
                                 model=self.settings.foundry_deployment_name,
@@ -247,11 +257,13 @@ class ChatService:
 
                             async for event2 in self._async_stream(stream2):
                                 if chat_store.is_cancelled(run_id):
-                                    yield self._format_sse_event("error", {"runId": run_id, "message": "Run was cancelled"})
+                                    yield self._format_sse_event(
+                                        "error", {"runId": run_id, "message": "Run was cancelled"}
+                                    )
                                     return
 
                                 event_type2 = getattr(event2, "type", None)
-                                
+
                                 if event_type2 == "response.output_text.delta":
                                     delta_text2 = getattr(event2, "delta", "")
                                     current_content2 += delta_text2
@@ -297,7 +309,9 @@ class ChatService:
                                                 }
                                 elif event_type2 == "response.error":
                                     error_msg2 = getattr(event2, "message", "Unknown error")
-                                    yield self._format_sse_event("error", {"runId": run_id, "message": error_msg2})
+                                    yield self._format_sse_event(
+                                        "error", {"runId": run_id, "message": error_msg2}
+                                    )
                                     return
                                 elif event_type2 == "response.completed":
                                     break
@@ -308,26 +322,37 @@ class ChatService:
                                 chat_store.add_message(run_id, message2)
                                 yield self._format_sse_event(
                                     "message_done",
-                                    {"runId": run_id, "message": {"role": "assistant", "content": current_content2}},
+                                    {
+                                        "runId": run_id,
+                                        "message": {
+                                            "role": "assistant",
+                                            "content": current_content2,
+                                        },
+                                    },
                                 )
 
                             # Handle any new tool calls from the continuation
                             for tool_call_data2 in current_tool_calls2.values():
                                 if tool_call_data2.get("id") and tool_call_data2.get("name"):
-                                    # Process tool calls recursively (simplified - in production, handle multiple tool calls)
-                                    break  # For now, break after first tool call to avoid infinite recursion
+                                    # Process tool calls recursively (simplified - in production,
+                                    # handle multiple tool calls)
+                                    break
+                                    # For now, break after first tool call to avoid infinite recursion
 
                         except Exception as e:
                             logger.error(f"Error executing tool {tool_call.name}: {e}")
                             yield self._format_sse_event(
                                 "error",
-                                {"runId": run_id, "message": f"Tool execution error: {str(e)}"},
+                                {"runId": run_id, "message": f"Tool execution error: {e!s}"},
                             )
                     else:
                         # Tool call rejected
                         yield self._format_sse_event(
                             "error",
-                            {"runId": run_id, "message": f"Tool call {tool_call.name} was rejected"},
+                            {
+                                "runId": run_id,
+                                "message": f"Tool call {tool_call.name} was rejected",
+                            },
                         )
 
             # Mark run as done
@@ -339,7 +364,9 @@ class ChatService:
             chat_store.error_run(run_id)
             yield self._format_sse_event("error", {"runId": run_id, "message": str(e)})
 
-    def _convert_messages(self, messages: list[ChatMessage], file_ids: list[str]) -> list[dict[str, Any]]:
+    def _convert_messages(
+        self, messages: list[ChatMessage], file_ids: list[str]
+    ) -> list[dict[str, Any]]:
         """Convert messages to OpenAI format.
 
         Args:
@@ -370,7 +397,9 @@ class ChatService:
 
         return openai_messages
 
-    def _convert_messages_for_responses_api(self, messages: list[ChatMessage], file_ids: list[str]) -> list[EasyInputMessage]:
+    def _convert_messages_for_responses_api(
+        self, messages: list[ChatMessage], file_ids: list[str]
+    ) -> list[EasyInputMessage]:
         """Convert messages to Responses API format using EasyInputMessage.
 
         The Responses API expects EasyInputMessage objects with roles:
@@ -429,13 +458,13 @@ class ChatService:
             Response stream events
         """
         loop = asyncio.get_event_loop()
-        
+
         def get_next_chunk():
             try:
                 return next(stream)
             except StopIteration:
                 return None
-        
+
         while True:
             chunk = await loop.run_in_executor(None, get_next_chunk)
             if chunk is None:
@@ -454,4 +483,3 @@ class ChatService:
         """
         data_json = json.dumps(data)
         return f"event: {event_type}\ndata: {data_json}\n\n"
-

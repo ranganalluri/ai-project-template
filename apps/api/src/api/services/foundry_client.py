@@ -1,13 +1,11 @@
 """Azure AI Foundry client service."""
 
 import logging
-from typing import Any
 
+from api.config import Settings
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 from openai import OpenAI
-
-from api.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +35,7 @@ class FoundryClient:
 
             credential = DefaultAzureCredential()
             self._project_client = AIProjectClient(
-                endpoint=self.settings.foundry_endpoint,
-                credential=credential
+                endpoint=self.settings.foundry_endpoint, credential=credential
             )
             logger.info("AI Project client initialized")
 
@@ -64,4 +61,3 @@ class FoundryClient:
             True if configuration is present
         """
         return bool(self.settings.foundry_endpoint)
-

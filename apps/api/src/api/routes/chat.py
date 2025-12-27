@@ -1,18 +1,17 @@
 """Chat routes for streaming conversations."""
 
 import logging
-import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
-from fastapi.responses import StreamingResponse
-
 from api.config import Settings, get_settings
-from api.models.chat import ChatMessage, ChatRequest, FileUploadResponse, ToolApprovalRequest
+from api.models.chat import ChatRequest, FileUploadResponse, ToolApprovalRequest
 from api.services.chat_service import ChatService
 from api.services.chat_store import chat_store
 from api.services.foundry_client import FoundryClient
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import File as FastAPIFile
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,7 @@ async def upload_file(
 
     except Exception as e:
         logger.error(f"Error uploading file: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"File upload failed: {e!s}")
 
 
 @router.post("/chat/stream")
@@ -129,7 +128,7 @@ async def stream_chat(
 
     except Exception as e:
         logger.error(f"Error in stream_chat: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Chat streaming failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat streaming failed: {e!s}")
 
 
 @router.post("/runs/{run_id}/stop")
@@ -164,10 +163,11 @@ async def approve_tool_call(
         Success message
     """
     chat_store.approve_tool_call(run_id, tool_call_id, request.approved)
-    logger.info(f"Tool call {tool_call_id} in run {run_id} {'approved' if request.approved else 'rejected'}")
+    logger.info(
+        f"Tool call {tool_call_id} in run {run_id} {'approved' if request.approved else 'rejected'}"
+    )
     return {
         "status": "approved" if request.approved else "rejected",
         "runId": run_id,
         "toolCallId": tool_call_id,
     }
-

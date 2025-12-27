@@ -3,7 +3,6 @@
 import logging
 import uuid
 from datetime import datetime
-from typing import Any
 
 from api.models.chat import ChatMessage, FileUploadResponse, RunStatus, ToolCall
 
@@ -17,8 +16,12 @@ class ChatStore:
         """Initialize the store."""
         self.runs: dict[str, RunStatus] = {}
         self.messages: dict[str, list[ChatMessage]] = {}  # run_id -> messages
-        self.pending_tool_calls: dict[str, dict[str, ToolCall]] = {}  # run_id -> {tool_call_id -> ToolCall}
-        self.tool_call_approvals: dict[str, dict[str, bool | None]] = {}  # run_id -> {tool_call_id -> approved}
+        self.pending_tool_calls: dict[str, dict[str, ToolCall]] = (
+            {}
+        )  # run_id -> {tool_call_id -> ToolCall}
+        self.tool_call_approvals: dict[str, dict[str, bool | None]] = (
+            {}
+        )  # run_id -> {tool_call_id -> approved}
         self.files: dict[str, FileUploadResponse] = {}  # file_id -> file metadata
         self.run_cancelled: dict[str, bool] = {}  # run_id -> cancelled flag
 
@@ -92,7 +95,9 @@ class ChatStore:
         if run_id not in self.tool_call_approvals:
             self.tool_call_approvals[run_id] = {}
         self.tool_call_approvals[run_id][tool_call_id] = approved
-        logger.info(f"Tool call {tool_call_id} in run {run_id} {'approved' if approved else 'rejected'}")
+        logger.info(
+            f"Tool call {tool_call_id} in run {run_id} {'approved' if approved else 'rejected'}"
+        )
 
     def get_tool_call_approval(self, run_id: str, tool_call_id: str) -> bool | None:
         """Get tool call approval status.
@@ -181,4 +186,3 @@ class ChatStore:
 
 # Global store instance
 chat_store = ChatStore()
-

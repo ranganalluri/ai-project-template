@@ -1,11 +1,9 @@
 """Route initialization module."""
 
-from fastapi import APIRouter
-
-
+from api.routes.chat import router as chat_router
 from api.routes.health import router as health_router
 from api.routes.user import router as user_router
-from api.routes.chat import router as chat_router
+from fastapi import APIRouter
 
 # Create main API router
 api_router = APIRouter(prefix="/api")

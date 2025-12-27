@@ -1,10 +1,9 @@
 """Health check routes."""
 
-from fastapi import APIRouter, Depends
-
 from api.config import Settings, get_settings
 from api.models.health import HealthCheckResponse
 from api.services.foundry_client import FoundryClient
+from fastapi import APIRouter, Depends
 
 router = APIRouter(tags=["health"])
 

@@ -8,10 +8,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def _get_env_file_path() -> str:
     """Get the path to the .env file.
-    
+
     Checks for ENV_FILE environment variable first, then defaults to
     .env in the API project directory (apps/api/.env).
-    
+
     Returns:
         Path to the .env file
     """
@@ -19,7 +19,7 @@ def _get_env_file_path() -> str:
     env_file = os.getenv("ENV_FILE")
     if env_file:
         return env_file
-    
+
     # Default to .env in the API project directory
     # This file is in apps/api/src/api/config.py
     # So we go up 3 levels to get to apps/api/

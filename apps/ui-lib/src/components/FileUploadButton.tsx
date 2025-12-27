@@ -45,11 +45,12 @@ export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
         📎
       </button>
       <input
+        title="Upload file"
         ref={fileInputRef}
         type="file"
+        className="file-upload-input"
         accept={accept}
         onChange={handleFileChange}
-        style={{ display: 'none' }}
       />
     </>
   );

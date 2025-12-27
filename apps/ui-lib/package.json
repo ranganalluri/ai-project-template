@@ -30,6 +30,9 @@
     "clean": "rimraf dist",
     "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test"
   },
+  "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1"
+  },
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"

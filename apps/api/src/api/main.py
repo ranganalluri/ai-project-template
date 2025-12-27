@@ -4,11 +4,10 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-
 from api.config import get_settings
 from api.middleware import setup_middleware
 from api.routes import api_router, chat_router_no_prefix
+from fastapi import FastAPI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

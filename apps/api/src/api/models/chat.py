@@ -1,7 +1,6 @@
 """Chat-related Pydantic models."""
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -26,9 +25,13 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     """Request model for chat stream."""
 
-    thread_id: str | None = Field(None, description="Optional thread ID for conversation continuity")
+    thread_id: str | None = Field(
+        None, description="Optional thread ID for conversation continuity"
+    )
     messages: list[ChatMessage] = Field(..., description="List of chat messages")
-    file_ids: list[str] = Field(default_factory=list, description="Attached file IDs for this request")
+    file_ids: list[str] = Field(
+        default_factory=list, description="Attached file IDs for this request"
+    )
 
 
 class ToolCall(BaseModel):
@@ -52,4 +55,3 @@ class RunStatus(BaseModel):
     status: str = Field(..., description="Run status: running, completed, cancelled, error")
     thread_id: str | None = Field(None, description="Thread ID")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
-

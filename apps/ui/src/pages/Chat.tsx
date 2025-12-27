@@ -1,5 +1,13 @@
 /** Chat page component. */
 
+/// <reference types="vite/client" />
+
+declare global {
+  interface Window {
+    ENV?: Record<string, string>;
+  }
+}
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChatShell,
@@ -205,7 +213,8 @@ export const Chat: React.FC = () => {
     if (savedApiUrl) {
       setApiUrl(savedApiUrl);
     } else {
-      const envApiUrl = import.meta.env.VITE_API_URL;
+      // Check window.ENV first (runtime config from env-config.js), then fall back to build-time env
+      const envApiUrl = window.ENV?.VITE_API_URL || import.meta.env.VITE_API_URL;
       if (envApiUrl) {
         setApiUrl(envApiUrl);
       }

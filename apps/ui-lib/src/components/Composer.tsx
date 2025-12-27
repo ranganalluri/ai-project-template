@@ -33,7 +33,7 @@ export const Composer: React.FC<ComposerProps> = ({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -73,7 +73,7 @@ export const Composer: React.FC<ComposerProps> = ({
           className="composer-input"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
           disabled={disabled || isStreaming}
           rows={1}
