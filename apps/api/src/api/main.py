@@ -40,7 +40,7 @@ app = FastAPI(
 )
 
 # Setup middleware
-setup_middleware(app, ui_url=settings.ui_url)
+setup_middleware(app, ui_url=settings.ui_url, environment=settings.environment)
 
 # Include routers
 app.include_router(api_router)

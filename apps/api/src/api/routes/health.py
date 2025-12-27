@@ -5,7 +5,7 @@ from api.models.health import HealthCheckResponse
 from api.services.foundry_client import FoundryClient
 from fastapi import APIRouter, Depends
 
-router = APIRouter(tags=["health"])
+router = APIRouter(tags=["health"], redirect_slashes=False)
 
 
 @router.get("/health", response_model=HealthCheckResponse)

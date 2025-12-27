@@ -5,9 +5,10 @@ from common.models.user import User
 from common.services.user_service import UserService
 from fastapi import APIRouter, Depends, HTTPException, status
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["users"], redirect_slashes=False)
 
 
+@router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)
 async def add_user(user: User, service: UserService = Depends(get_user_service)) -> User:
     if not service.add_user(user):
@@ -15,6 +16,7 @@ async def add_user(user: User, service: UserService = Depends(get_user_service))
     return user
 
 
+@router.get("", response_model=list[User])
 @router.get("/", response_model=list[User])
 async def list_users(service: UserService = Depends(get_user_service)) -> list[User]:
     return service.list_users()

@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1", tags=["chat"])
+router = APIRouter(prefix="/v1", tags=["chat"], redirect_slashes=False)
 
 
 def get_foundry_client(settings: Settings = Depends(get_settings)) -> FoundryClient:
