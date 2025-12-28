@@ -56,6 +56,7 @@ class CosmosUserService(UserService):
             container_name: Container name for users
             use_managed_identity: Use managed identity for authentication
         """
+        
         if use_managed_identity:
             credential = DefaultAzureCredential()
             self.client = CosmosClient(cosmos_endpoint, credential)

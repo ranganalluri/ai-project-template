@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from api.config import get_settings
 from api.middleware import get_cors_headers, setup_middleware
 from api.routes import api_router, chat_router_no_prefix
+from api.services.cosmos_db_init import initialize_cosmos_db
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
@@ -26,6 +27,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info(f"{settings.app_name} v{settings.app_version} started")
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Log level: {settings.log_level}")
+
+    # Initialize Cosmos DB
+    logger.info("Initializing Cosmos DB...")
+    await initialize_cosmos_db(settings)
 
     yield
 

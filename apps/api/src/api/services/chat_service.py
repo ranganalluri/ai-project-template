@@ -41,6 +41,7 @@ class ChatService:
         run_id: str,
         messages: list[ChatMessage],
         file_ids: list[str],
+        conversation_id: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream chat completion with tool approval support.
 
@@ -48,6 +49,7 @@ class ChatService:
             run_id: Run ID
             messages: List of messages
             file_ids: List of attached file IDs
+            conversation_id: Conversation ID to include in responses
 
         Yields:
             SSE event strings
@@ -162,10 +164,19 @@ class ChatService:
             if current_content:
                 message = ChatMessage(role="assistant", content=current_content)
                 self.chat_store.add_message(run_id, message)
-                yield self._format_sse_event(
-                    "message_done",
-                    {"runId": run_id, "message": {"role": "assistant", "content": current_content}},
-                )
+                event_data = {"runId": run_id, "message": {"role": "assistant", "content": current_content}}
+                # Always include conversationId if available
+                if conversation_id:
+                    event_data["conversationId"] = conversation_id
+                else:
+                    # Try to get it from the run if not provided
+                    try:
+                        conv_id = self.chat_store.get_conversation_id_from_run(run_id)
+                        if conv_id:
+                            event_data["conversationId"] = conv_id
+                    except Exception as e:
+                        logger.warning("Could not get conversation_id for message_done event: %s", e)
+                yield self._format_sse_event("message_done", event_data)
 
             # Handle tool calls
             for item_id, tool_call_data in current_tool_calls.items():
@@ -315,16 +326,16 @@ class ChatService:
                             if current_content2:
                                 message2 = ChatMessage(role="assistant", content=current_content2)
                                 self.chat_store.add_message(run_id, message2)
-                                yield self._format_sse_event(
-                                    "message_done",
-                                    {
-                                        "runId": run_id,
-                                        "message": {
-                                            "role": "assistant",
-                                            "content": current_content2,
-                                        },
+                                event_data = {
+                                    "runId": run_id,
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": current_content2,
                                     },
-                                )
+                                }
+                                if conversation_id:
+                                    event_data["conversationId"] = conversation_id
+                                yield self._format_sse_event("message_done", event_data)
 
                             # Handle any new tool calls from the continuation
                             for tool_call_data2 in current_tool_calls2.values():
@@ -352,7 +363,19 @@ class ChatService:
 
             # Mark run as done
             self.chat_store.complete_run(run_id)
-            yield self._format_sse_event("done", {"runId": run_id})
+            event_data = {"runId": run_id}
+            # Always include conversationId if available
+            if conversation_id:
+                event_data["conversationId"] = conversation_id
+            else:
+                # Try to get it from the run if not provided
+                try:
+                    conv_id = self.chat_store.get_conversation_id_from_run(run_id)
+                    if conv_id:
+                        event_data["conversationId"] = conv_id
+                except Exception as e:
+                    logger.warning("Could not get conversation_id for done event: %s", e)
+            yield self._format_sse_event("done", event_data)
 
         except Exception as e:
             logger.error(f"Error in stream_chat: {e}", exc_info=True)

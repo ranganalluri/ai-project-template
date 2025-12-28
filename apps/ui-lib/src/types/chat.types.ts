@@ -28,6 +28,7 @@ export interface SSEMessageDelta {
 export interface SSEMessageDone {
   runId: string;
   message: ChatMessage;
+  conversationId?: string;
 }
 
 export interface SSEToolCallRequested {
@@ -48,6 +49,7 @@ export interface SSEError {
 
 export interface SSEDone {
   runId: string;
+  conversationId?: string;
 }
 
 export type SSEEvent =

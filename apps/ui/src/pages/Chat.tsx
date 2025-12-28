@@ -34,6 +34,10 @@ export const Chat: React.FC = () => {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [pendingToolCall, setPendingToolCall] = useState<{ runId: string; toolCall: ToolCall } | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
+  const [conversationId, setConversationId] = useState<string | null>(() => {
+    // Initialize from sessionStorage on mount
+    return sessionStorage.getItem('conversationId');
+  });
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentContentRef = useRef<string>('');
   const toastIdCounterRef = useRef<number>(0);
@@ -53,7 +57,7 @@ export const Chat: React.FC = () => {
         return;
       }
 
-      // Add user message
+      // Add user message to UI
       const userMessage: ChatMessage = {
         role: 'user',
         content: message,
@@ -72,8 +76,10 @@ export const Chat: React.FC = () => {
       let runId: string | null = null;
 
       try {
+        console.log('Sending message with conversationId:', conversationId);
         await startChatSSE({
-          messages: [...messages, userMessage],
+          threadId: conversationId || undefined,
+          messages: [userMessage], // Only send the new user message
           files,
           onEvent: (event: SSEEvent) => {
             if (event.type === 'message_delta') {
@@ -109,6 +115,12 @@ export const Chat: React.FC = () => {
                   return [...newMessages, { ...event.data.message, id: event.data.runId }];
                 }
               });
+              // Update conversationId if provided in response
+              if (event.data.conversationId && event.data.conversationId !== conversationId) {
+                console.log('Updating conversationId from message_done:', event.data.conversationId, 'previous:', conversationId);
+                setConversationId(event.data.conversationId);
+                sessionStorage.setItem('conversationId', event.data.conversationId);
+              }
             } else if (event.type === 'tool_call_requested') {
               runId = event.data.runId;
               setCurrentRunId(runId);
@@ -128,6 +140,14 @@ export const Chat: React.FC = () => {
               setIsStreaming(false);
               setCurrentRunId(null);
               currentContentRef.current = '';
+              // Update conversationId if provided in response
+              if (event.data.conversationId && event.data.conversationId !== conversationId) {
+                console.log('Updating conversationId from done event:', event.data.conversationId, 'previous:', conversationId);
+                setConversationId(event.data.conversationId);
+                sessionStorage.setItem('conversationId', event.data.conversationId);
+              } else if (!event.data.conversationId) {
+                console.warn('Done event missing conversationId, current:', conversationId);
+              }
             }
           },
           onError: (error) => {
@@ -143,7 +163,7 @@ export const Chat: React.FC = () => {
         setCurrentRunId(null);
       }
     },
-    [messages, isStreaming, addToast],
+    [conversationId, isStreaming, addToast],
   );
 
   const handleStop = useCallback(async () => {

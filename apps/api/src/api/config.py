@@ -39,7 +39,10 @@ class Settings(BaseSettings):
     # Azure Cosmos DB
     azure_cosmosdb_endpoint: str | None = None
     azure_cosmosdb_key: str | None = None
-    database_name: str = "agentic"
+    database_name: str = "agenticdb"
+    cosmos_agent_store_container: str = "agentStore"
+    default_tenant_id: str = "t1"
+    # Legacy container names (kept for backward compatibility)
     cosmos_conversations_container: str = "conversations"
     cosmos_runs_container: str = "runs"
     cosmos_users_container: str = "users"
@@ -66,7 +69,7 @@ class Settings(BaseSettings):
     catalog_container: str = "catalog"
 
     # Azure Storage
-    azure_storage_account_name: str | None = None
+    azure_storage_account_name: str | None = "None"
     azure_storage_account_key: str | None = None
     azure_storage_container_name: str = "files"
 

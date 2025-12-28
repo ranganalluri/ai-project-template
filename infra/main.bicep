@@ -105,6 +105,20 @@ module aiServices 'modules/ai-services.bicep' = {
   }
 }
 
+// Azure Cosmos DB
+module cosmosDb 'modules/cosmos-db.bicep' = {
+  name: 'cosmosDbDeployment'
+  params: {
+    name: '${resourceNamePrefix}-cosmos-${resourceIndexSuffix}'
+    location: location
+    environment: environment
+    tags: {
+      region: regionCode
+      createdBy: 'bicep'
+    }
+  }
+}
+
 // Azure Key Vault
 module keyVault 'modules/key-vault.bicep' = if (keyVaultEnabled) {
   name: 'keyVaultDeployment'
@@ -142,6 +156,12 @@ output AI_FOUNDRY_PROJECT_ID string = aiServices.outputs.projectId
 output AI_FOUNDRY_GPT4_DEPLOYMENT string = aiServices.outputs.gpt4DeploymentName
 output AI_SERVICES_ACCOUNT_NAME string = aiServices.outputs.accountName
 output AI_SERVICES_ENDPOINT string = aiServices.outputs.endpoint
+
+// Cosmos DB outputs
+output AZURE_COSMOSDB_ACCOUNT_NAME string = cosmosDb.outputs.accountName
+output AZURE_COSMOSDB_ENDPOINT string = cosmosDb.outputs.endpoint
+output AZURE_COSMOSDB_KEY string = cosmosDb.outputs.key
+output AZURE_COSMOSDB_DATABASE_NAME string = cosmosDb.outputs.databaseName
 
 // Key Vault outputs
 output KEY_VAULT_NAME string = (keyVaultEnabled) ? keyVault.outputs.name : ''
