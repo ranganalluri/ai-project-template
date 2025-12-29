@@ -127,12 +127,12 @@ resource projectContributorRole 'Microsoft.Authorization/roleAssignments@2022-04
 
 // Role assignment: Grant "Azure AI User" role which includes data actions for AI Foundry
 // This role provides access to AI services including agents operations
-// Role ID: 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd
+// Role ID: 53ca6127-db72-4b80-b1b0-d745d6d5456d
 resource azureAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(managedIdentityPrincipalId)) {
   name: guid(aiFoundryAccount.id, managedIdentityPrincipalId, 'AzureAIUser')
   scope: aiFoundryAccount
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')
     principalId: managedIdentityPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -143,7 +143,7 @@ resource projectAzureAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04
   name: guid(aiProject.id, managedIdentityPrincipalId, 'AzureAIUser')
   scope: aiProject
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')
     principalId: managedIdentityPrincipalId
     principalType: 'ServicePrincipal'
   }
