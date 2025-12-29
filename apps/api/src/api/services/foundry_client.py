@@ -33,9 +33,16 @@ class FoundryClient:
             if not self.settings.foundry_endpoint:
                 raise ValueError("FOUNDRY_ENDPOINT is not set")
 
-            credential = DefaultAzureCredential()
-            self._project_client = AIProjectClient(endpoint=self.settings.foundry_endpoint, credential=credential)
-            logger.info("AI Project client initialized")
+            try:
+                credential = DefaultAzureCredential()
+                logger.info(f"Initializing AI Project client with endpoint: {self.settings.foundry_endpoint}")
+                self._project_client = AIProjectClient(endpoint=self.settings.foundry_endpoint, credential=credential)
+                logger.info("AI Project client initialized with managed identity")
+            except Exception as e:
+                logger.error(f"Failed to initialize AI Project client: {e}")
+                logger.error(f"Endpoint: {self.settings.foundry_endpoint}")
+                logger.error("Ensure the managed identity has 'Cognitive Services User' role (not 'Cognitive Services OpenAI User')")
+                raise
 
         return self._project_client
 

@@ -21,11 +21,26 @@ param cosmosDbEndpoint string = ''
 
 var foundryProjectEndpoint = '${foundryEndpoint}api/projects/${foundryProjectName}'
 
+// Extract managed identity name from resource ID and reference it to get client ID
+var managedIdentityName = last(split(identityId, '/'))
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: managedIdentityName
+}
+
 // Build environment variables array conditionally
 var baseEnvVars = (!empty(foundryEndpoint) && !empty(foundryProjectName)) ? [
   {
     name: 'FOUNDRY_ENDPOINT'
     value: foundryProjectEndpoint
+  }
+] : []
+
+// Add Foundry connection string from Key Vault if available
+// Connection string bypasses RBAC data action limitations for agents operations
+var foundryConnectionStringEnvVars = (!empty(keyVaultName)) ? [
+  {
+    name: 'FOUNDRY_PROJECT_CONNECTION_STRING'
+    secretRef: 'foundry-connection-string'
   }
 ] : []
 
@@ -43,7 +58,16 @@ var keyVaultEnvVars = (!empty(keyVaultName)) ? [
   }
 ] : []
 
-var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars)
+// Set AZURE_CLIENT_ID so DefaultAzureCredential knows which managed identity to use
+// This is required for user-assigned managed identities in Container Apps
+var managedIdentityEnvVars = (!empty(identityId)) ? [
+  {
+    name: 'AZURE_CLIENT_ID'
+    value: managedIdentity.properties.clientId
+  }
+] : []
+
+var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars, managedIdentityEnvVars, foundryConnectionStringEnvVars)
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: containerRegistryName
