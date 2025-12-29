@@ -14,6 +14,7 @@ param imageName string
 param identityId string
 param resourceNamePrefix string
 param resourceIndexSuffix string
+param keyVaultUri string = ''
 
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
@@ -22,6 +23,13 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-pr
 
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2022-03-01' existing = {
   name: containerAppsEnvironmentName
+}
+
+// Extract Key Vault name from URI (format: https://{name}.vault.azure.net/)
+var keyVaultName = (!empty(keyVaultUri)) ? split(split(keyVaultUri, '://')[1], '.')[0] : ''
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = if (!empty(keyVaultUri)) {
+  name: keyVaultName
 }
 
 resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
@@ -45,6 +53,13 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
           identity: identityId
         }
       ]
+      secrets: (!empty(keyVaultUri)) ? [
+        {
+          name: 'cosmos-db-key'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/CosmosDbKey'
+          identity: identityId
+        }
+      ] : []
       activeRevisionsMode: 'Single'
     }
     template: {
@@ -52,6 +67,12 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
         {
           image: imageName
           name: 'main'
+          env: (!empty(keyVaultUri)) ? [
+            {
+              name: 'AZURE_COSMOSDB_KEY'
+              secretRef: 'cosmos-db-key'
+            }
+          ] : []
           resources: {
             cpu: json('0.5')
             memory: '1.0Gi'

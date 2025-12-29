@@ -6,6 +6,7 @@ param location string
 param environment string = 'dev'
 param sku string = 'S0'
 param managedIdentityResourceId string = ''
+param managedIdentityPrincipalId string = ''
 param projectName string = ''
 param tags object = {}
 
@@ -67,6 +68,18 @@ resource gpt4Deployment 'Microsoft.CognitiveServices/accounts/deployments@2025-0
       version: '2025-04-14'
     }
     raiPolicyName: 'Microsoft.Default'
+  }
+}
+
+// Role assignment: Grant managed identity permission to use AI Foundry account
+// This allows the container app to invoke models in the AI project
+resource cognitiveServicesUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(managedIdentityPrincipalId)) {
+  name: guid(aiFoundryAccount.id, managedIdentityPrincipalId, 'CognitiveServicesUser')
+  scope: aiFoundryAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '86240b0e-9422-4c43-887b-b61143f32ba8')
+    principalId: managedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 

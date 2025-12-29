@@ -49,7 +49,7 @@ resource cosmosDatabaseNew 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2
 
 // Users Container
 resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDatabase
+  parent: cosmosDatabaseNew
   name: 'users'
   properties: {
     resource: {

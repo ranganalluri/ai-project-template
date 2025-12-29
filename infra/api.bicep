@@ -15,7 +15,35 @@ param identityId string
 param resourceNamePrefix string
 param resourceIndexSuffix string
 param keyVaultName string = ''
+param foundryEndpoint string = ''
+param foundryProjectName string = ''
+param cosmosDbEndpoint string = ''
 
+var foundryProjectEndpoint = '${foundryEndpoint}api/projects/${foundryProjectName}'
+
+// Build environment variables array conditionally
+var baseEnvVars = (!empty(foundryEndpoint) && !empty(foundryProjectName)) ? [
+  {
+    name: 'FOUNDRY_ENDPOINT'
+    value: foundryProjectEndpoint
+  }
+] : []
+
+var cosmosEnvVars = (!empty(cosmosDbEndpoint)) ? [
+  {
+    name: 'AZURE_COSMOSDB_ENDPOINT'
+    value: cosmosDbEndpoint
+  }
+] : []
+
+var keyVaultEnvVars = (!empty(keyVaultName)) ? [
+  {
+    name: 'AZURE_COSMOSDB_KEY'
+    secretRef: 'cosmos-db-key'
+  }
+] : []
+
+var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars)
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: containerRegistryName
@@ -24,6 +52,7 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-pr
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2022-03-01' existing = {
   name: containerAppsEnvironmentName
 }
+
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = if (!empty(keyVaultName)) {
   name: keyVaultName
@@ -56,6 +85,11 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
           keyVaultUrl: '${keyVault.properties.vaultUri}secrets/FoundryProjectConnectionString'
           identity: identityId
         }
+        {
+          name: 'cosmos-db-key'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/CosmosDbKey'
+          identity: identityId
+        }
       ] : []
       activeRevisionsMode: 'Single'
     }
@@ -64,12 +98,7 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
         {
           image: imageName
           name: 'main'
-          env: (!empty(keyVaultName)) ? [
-            {
-              name: 'FOUNDRY_PROJECT_CONNECTION_STRING'
-              secretRef: 'foundry-connection-string'
-            }
-          ] : []
+          env: allEnvVars
           resources: {
             cpu: json('0.5')
             memory: '1.0Gi'

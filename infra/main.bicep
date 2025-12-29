@@ -97,6 +97,7 @@ module aiServices 'modules/ai-services.bicep' = {
     environment: environment
     sku: aiServicesSku
     managedIdentityResourceId: managedIdentity.id
+    managedIdentityPrincipalId: managedIdentity.properties.principalId
     projectName: (!empty(aiProjectName)) ? aiProjectName : '${resourceNamePrefix}-project-${resourceIndexSuffix}'
     tags: {
       region: regionCode
@@ -127,6 +128,7 @@ module keyVault 'modules/key-vault.bicep' = if (keyVaultEnabled) {
     location: location
     managedIdentityPrincipalId: managedIdentity.properties.principalId
     environment: environment
+    cosmosDbKey: cosmosDb.outputs.key
     tags: {
       region: regionCode
       createdBy: 'bicep'
@@ -168,3 +170,4 @@ output KEY_VAULT_NAME string = (keyVaultEnabled) ? keyVault.outputs.name : ''
 output KEY_VAULT_URI string = (keyVaultEnabled) ? keyVault.outputs.uri : ''
 output FOUNDRY_CONNECTION_STRING_SECRET_NAME string = (keyVaultEnabled) ? keyVault.outputs.secretName : ''
 output FOUNDRY_CONNECTION_STRING string = (keyVaultEnabled) ? 'Update Key Vault secret "${keyVault.outputs.secretName}" after creating AI Project' : ''
+output COSMOS_DB_KEY_SECRET_NAME string = (keyVaultEnabled) ? keyVault.outputs.cosmosDbKeySecretName : ''

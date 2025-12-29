@@ -6,6 +6,7 @@ param location string
 param managedIdentityPrincipalId string
 param environment string = 'dev'
 param tags object = {}
+param cosmosDbKey string = ''
 
 // Key Vault resource
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -61,8 +62,19 @@ resource foundryConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-0
   }
 }
 
+// Cosmos DB Key secret
+resource cosmosDbKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(cosmosDbKey)) {
+  parent: keyVault
+  name: 'CosmosDbKey'
+  properties: {
+    value: cosmosDbKey
+    contentType: 'text/plain'
+  }
+}
+
 output id string = keyVault.id
 output name string = keyVault.name
 output uri string = keyVault.properties.vaultUri
 output secretName string = 'FoundryProjectConnectionString'
+output cosmosDbKeySecretName string = 'CosmosDbKey'
 
