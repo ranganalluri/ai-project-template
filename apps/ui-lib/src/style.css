@@ -1,0 +1,395 @@
+/* Combined CSS for @agentic/ui-lib */
+
+/* Button component */
+.button-green {
+  background-color: green;
+  color: white;
+  border: none;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+.button-green:hover {
+  background-color: #228B22;
+}
+
+/* ChatShell component */
+.chat-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+}
+
+.chat-shell-header {
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 18px;
+  font-weight: 600;
+  background: #f8f9fa;
+}
+
+.chat-shell-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* MessageList component */
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  font-style: italic;
+}
+
+/* MessageBubble component */
+.message-bubble {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  max-width: 80%;
+  word-wrap: break-word;
+}
+
+.message-bubble-user {
+  background: #007bff;
+  color: white;
+  margin-left: auto;
+  text-align: right;
+}
+
+.message-bubble-assistant {
+  background: #f1f1f1;
+  color: #333;
+  margin-right: auto;
+}
+
+.message-bubble-tool {
+  background: #fff3cd;
+  color: #856404;
+  margin-right: auto;
+  border: 1px solid #ffc107;
+}
+
+.message-bubble-system {
+  background: #e9ecef;
+  color: #495057;
+  margin: 0 auto;
+  text-align: center;
+  font-style: italic;
+}
+
+.message-bubble-header {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  opacity: 0.8;
+}
+
+.message-bubble-content {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.message-bubble-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.message-bubble-file-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.message-bubble-user .message-bubble-file-chip {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Composer component */
+.composer {
+  border-top: 1px solid #e0e0e0;
+  padding: 16px;
+  background: white;
+}
+
+.composer-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.composer-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f0f0f0;
+  border-radius: 16px;
+  font-size: 14px;
+}
+
+.composer-file-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.composer-file-remove:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.composer-input-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.composer-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  min-height: 40px;
+  max-height: 120px;
+}
+
+.composer-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.composer-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.composer-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.composer-button-send {
+  background: #007bff;
+  color: white;
+}
+
+.composer-button-send:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.composer-button-stop {
+  background: #dc3545;
+  color: white;
+}
+
+.composer-button-stop:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.composer-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* FileUploadButton component */
+.file-upload-button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.file-upload-button:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.file-upload-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ToolApprovalModal component */
+.tool-approval-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.tool-approval-modal {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.tool-approval-modal-title {
+  margin: 0 0 16px 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.tool-approval-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tool-approval-modal-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.tool-approval-modal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-approval-modal-arguments {
+  background: white;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0;
+  font-family: 'Courier New', monospace;
+}
+
+.tool-approval-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.tool-approval-modal-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.tool-approval-modal-button-approve {
+  background: #4caf50;
+  color: white;
+}
+
+.tool-approval-modal-button-approve:hover {
+  background: #45a049;
+}
+
+.tool-approval-modal-button-reject {
+  background: #f44336;
+  color: white;
+}
+
+.tool-approval-modal-button-reject:hover {
+  background: #da190b;
+}
+
+/* Toast component */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast {
+  padding: 12px 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  min-width: 250px;
+  max-width: 400px;
+  animation: slideIn 0.3s ease-out;
+  background: white;
+  color: #333;
+}
+
+.toast-success {
+  background: #4caf50;
+  color: white;
+}
+
+.toast-error {
+  background: #f44336;
+  color: white;
+}
+
+.toast-info {
+  background: #2196f3;
+  color: white;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

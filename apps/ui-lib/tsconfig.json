@@ -2,6 +2,8 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
+    "target": "ES2017",
+    "lib": ["ES2017", "DOM"],
     "declaration": true,
     "declarationMap": true,
     "composite": false,

@@ -12,6 +12,7 @@ class HealthCheckResponse(BaseModel):
     version: str
     environment: str | None = None
     message: str = "API is healthy"
+    foundry_configured: bool = False
 
     class Config:
         """Pydantic config."""

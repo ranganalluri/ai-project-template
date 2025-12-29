@@ -1,0 +1,104 @@
+.composer {
+  border-top: 1px solid #e0e0e0;
+  padding: 16px;
+  background: white;
+}
+
+.composer-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.composer-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f0f0f0;
+  border-radius: 16px;
+  font-size: 14px;
+}
+
+.composer-file-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.composer-file-remove:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.composer-input-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.composer-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  min-height: 40px;
+  max-height: 120px;
+}
+
+.composer-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.composer-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.composer-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.composer-button-send {
+  background: #007bff;
+  color: white;
+}
+
+.composer-button-send:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.composer-button-stop {
+  background: #dc3545;
+  color: white;
+}
+
+.composer-button-stop:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.composer-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

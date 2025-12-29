@@ -14,7 +14,60 @@ param imageName string
 param identityId string
 param resourceNamePrefix string
 param resourceIndexSuffix string
+param keyVaultName string = ''
+param foundryEndpoint string = ''
+param foundryProjectName string = ''
+param cosmosDbEndpoint string = ''
 
+var foundryProjectEndpoint = '${foundryEndpoint}api/projects/${foundryProjectName}'
+
+// Extract managed identity name from resource ID and reference it to get client ID
+var managedIdentityName = last(split(identityId, '/'))
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: managedIdentityName
+}
+
+// Build environment variables array conditionally
+var baseEnvVars = (!empty(foundryEndpoint) && !empty(foundryProjectName)) ? [
+  {
+    name: 'FOUNDRY_ENDPOINT'
+    value: foundryProjectEndpoint
+  }
+] : []
+
+// Add Foundry connection string from Key Vault if available
+// Connection string bypasses RBAC data action limitations for agents operations
+var foundryConnectionStringEnvVars = (!empty(keyVaultName)) ? [
+  {
+    name: 'FOUNDRY_PROJECT_CONNECTION_STRING'
+    secretRef: 'foundry-connection-string'
+  }
+] : []
+
+var cosmosEnvVars = (!empty(cosmosDbEndpoint)) ? [
+  {
+    name: 'AZURE_COSMOSDB_ENDPOINT'
+    value: cosmosDbEndpoint
+  }
+] : []
+
+var keyVaultEnvVars = (!empty(keyVaultName)) ? [
+  {
+    name: 'AZURE_COSMOSDB_KEY'
+    secretRef: 'cosmos-db-key'
+  }
+] : []
+
+// Set AZURE_CLIENT_ID so DefaultAzureCredential knows which managed identity to use
+// This is required for user-assigned managed identities in Container Apps
+var managedIdentityEnvVars = (!empty(identityId)) ? [
+  {
+    name: 'AZURE_CLIENT_ID'
+    value: managedIdentity.properties.clientId
+  }
+] : []
+
+var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars, managedIdentityEnvVars, foundryConnectionStringEnvVars)
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: containerRegistryName
@@ -22,6 +75,11 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-pr
 
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2022-03-01' existing = {
   name: containerAppsEnvironmentName
+}
+
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = if (!empty(keyVaultName)) {
+  name: keyVaultName
 }
 
 resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
@@ -45,6 +103,18 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
           identity: identityId
         }
       ]
+      secrets: (!empty(keyVaultName)) ? [
+        {
+          name: 'foundry-connection-string'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/FoundryProjectConnectionString'
+          identity: identityId
+        }
+        {
+          name: 'cosmos-db-key'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/CosmosDbKey'
+          identity: identityId
+        }
+      ] : []
       activeRevisionsMode: 'Single'
     }
     template: {
@@ -52,6 +122,7 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
         {
           image: imageName
           name: 'main'
+          env: allEnvVars
           resources: {
             cpu: json('0.5')
             memory: '1.0Gi'

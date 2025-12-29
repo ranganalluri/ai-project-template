@@ -4,6 +4,8 @@ import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Home } from '@/pages/Home';
 import { Agents } from '@/pages/Agents';
+import { Chat } from '@/pages/Chat';
+import { Settings } from '@/pages/Settings';
 import '@/styles/index.css';
 import '@agentic/ui-lib/style.css';
 
@@ -16,10 +18,11 @@ const App: React.FC = () => {
           <Sidebar />
           <main className="flex-1">
             <Routes>
-              <Route path="/" element={<Navigate to="/home" replace />} />
+              <Route path="/" element={<Navigate to="/chat" replace />} />
               <Route path="/home" element={<Home />} />
               <Route path="/agents" element={<Agents />} />
-              {/* Add more routes as needed */}
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
         </div>

@@ -20,6 +20,15 @@
     },
     "containerRegistryAdminEnabled": {
       "value": true
+    },
+    "aiServicesSku": {
+      "value": "S0"
+    },
+    "keyVaultEnabled": {
+      "value": true
+    },
+    "aiProjectName": {
+      "value": ""
     }
   }
 }
