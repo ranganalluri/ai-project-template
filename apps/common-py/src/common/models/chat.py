@@ -48,8 +48,10 @@ class ToolApprovalRequest(BaseModel):
     """Request model for tool approval."""
 
     approved: bool = Field(..., description="Whether the tool call is approved")
-    partition_key: str | None = Field(None, alias="partitionKey", description="Partition key for the function call document")
-    
+    partition_key: str | None = Field(
+        None, alias="partitionKey", description="Partition key for the function call document"
+    )
+
     model_config = ConfigDict(populate_by_name=True)  # Allow both partitionKey and partition_key
 
 

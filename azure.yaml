@@ -36,7 +36,7 @@ services:
     # hooks:
     #   postdeploy:
     #     shell: pwsh
-    #     run: ./hooks/ui-postdeploy.ps1
+    #     run: ./scripts/ui-postdeploy.ps1
 
 # Infrastructure as Code definition
 infra:
@@ -47,13 +47,13 @@ infra:
 hooks:
   # postprovision:
   #   shell: pwsh
-  #   run: ./hooks/postprovision.ps1
+  #   run: ./scripts/postprovision.ps1
   predeploy:
     shell: pwsh
-    run: ./hooks/predeploy.ps1
+    run: ./scripts/predeploy.ps1
   postdeploy:
     shell: pwsh
-    run: ./hooks/postdeploy.ps1
+    run: ./scripts/postdeploy.ps1
 
 # Environment variables to be set when the application is running
 env:

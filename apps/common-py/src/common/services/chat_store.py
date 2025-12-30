@@ -59,20 +59,22 @@ class ChatStore(ABC):
     @abstractmethod
     def add_pending_tool_call(self, run_id: str, tool_call: ToolCall, conversation_id: str | None = None) -> str:
         """Add a pending tool call.
-        
+
         Args:
             run_id: Response ID
             tool_call: Tool call to add
             conversation_id: Optional conversation ID to avoid cross-partition queries
-            
+
         Returns:
             Partition key for the function call document
         """
 
     @abstractmethod
-    def approve_tool_call(self, run_id: str, tool_call_id: str, approved: bool, partition_key: str | None = None) -> None:
+    def approve_tool_call(
+        self, run_id: str, tool_call_id: str, approved: bool, partition_key: str | None = None
+    ) -> None:
         """Approve or reject a tool call.
-        
+
         Args:
             run_id: Response ID
             tool_call_id: Tool call ID
@@ -83,12 +85,12 @@ class ChatStore(ABC):
     @abstractmethod
     def get_tool_call_approval(self, run_id: str, tool_call_id: str, conversation_id: str | None = None) -> bool | None:
         """Get tool call approval status.
-        
+
         Args:
             run_id: Response ID
             tool_call_id: Tool call ID
             conversation_id: Optional conversation ID to avoid cross-partition queries
-            
+
         Returns:
             Approval status (True/False) or None if pending
         """
@@ -98,7 +100,9 @@ class ChatStore(ABC):
         """Get a pending tool call."""
 
     @abstractmethod
-    def request_parameters(self, run_id: str, tool_call_id: str, missing_parameters: list[str], conversation_id: str | None = None) -> None:
+    def request_parameters(
+        self, run_id: str, tool_call_id: str, missing_parameters: list[str], conversation_id: str | None = None
+    ) -> None:
         """Request missing parameters for a tool call.
 
         Args:
@@ -149,11 +153,11 @@ class ChatStore(ABC):
     @abstractmethod
     def is_cancelled(self, run_id: str, conversation_id: str | None = None) -> bool:
         """Check if a run is cancelled.
-        
+
         Args:
             run_id: Response ID
             conversation_id: Optional conversation ID to avoid cross-partition queries
-            
+
         Returns:
             True if cancelled, False otherwise
         """
@@ -230,7 +234,9 @@ class ChatStore(ABC):
         """
 
     @abstractmethod
-    def add_function_call(self, run_id: str, call_id: str, name: str, arguments: str, conversation_id: str | None = None) -> str:
+    def add_function_call(
+        self, run_id: str, call_id: str, name: str, arguments: str, conversation_id: str | None = None
+    ) -> str:
         """Add a function call to a response.
 
         Args:
@@ -242,6 +248,21 @@ class ChatStore(ABC):
 
         Returns:
             Function call document ID
+        """
+
+    @abstractmethod
+    def update_response_usage(
+        self,
+        run_id: str,
+        usage_data: dict[str, Any],
+        conversation_id: str | None = None,
+    ) -> None:
+        """Update LLM usage data in response document.
+
+        Args:
+            run_id: Response ID
+            usage_data: Dictionary containing usage information (provider, model, tokenUsage, etc.)
+            conversation_id: Optional conversation ID for filtering
         """
 
 
@@ -535,7 +556,7 @@ class CosmosChatStore(ChatStore):
 
     def _get_partition_info_from_run_id(self, run_id: str) -> tuple[str, str, str] | None:
         """Get partition info (tenant_id, user_id, conversation_id) from run_id using minimal projection.
-        
+
         Returns:
             Tuple of (tenant_id, user_id, conversation_id) or None if not found
         """
@@ -564,7 +585,7 @@ class CosmosChatStore(ChatStore):
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         """Query documents by type within a partition.
-        
+
         Optimized to use server-side pagination to reduce RU consumption.
         """
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
@@ -594,7 +615,9 @@ class CosmosChatStore(ChatStore):
 
         return items
 
-    def create_run(self, thread_id: str | None = None, user_id: str = "default", tenant_id: str | None = None) -> tuple[str, str]:
+    def create_run(
+        self, thread_id: str | None = None, user_id: str = "default", tenant_id: str | None = None
+    ) -> tuple[str, str]:
         """Create a new run.
 
         Args:
@@ -763,7 +786,7 @@ class CosmosChatStore(ChatStore):
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use partition key for efficient query
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
         try:
@@ -837,7 +860,7 @@ class CosmosChatStore(ChatStore):
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use partition key for efficient query
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
         try:
@@ -910,7 +933,7 @@ class CosmosChatStore(ChatStore):
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use partition key for efficient query
         user_id = "default"  # Default, will be updated from doc
         tenant_id = self.default_tenant_id
@@ -952,6 +975,182 @@ class CosmosChatStore(ChatStore):
             logger.error("Failed to update response %s OpenAI ID: %s", run_id, e)
             raise
 
+    def update_response_output_message_ids(
+        self,
+        run_id: str,
+        output_message_ids: list[str],
+        conversation_id: str | None = None,
+    ) -> None:
+        """Update output message IDs in response document.
+
+        Args:
+            run_id: Response ID
+            output_message_ids: List of OpenAI output message IDs
+            conversation_id: Optional conversation ID for filtering
+        """
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+
+        # Use partition key for efficient query
+        user_id = "default"  # Default, will be updated from doc
+        tenant_id = self.default_tenant_id
+        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            if response_doc.get("type") not in ("response", "run"):
+                raise ValueError(f"Document {run_id} is not a response")
+            # Update user_id and tenant_id from doc
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
+
+        # Update output message IDs in metadata
+        if "output" not in response_doc:
+            response_doc["output"] = {"text": "", "metadata": {}}
+        if not isinstance(response_doc["output"], dict):
+            response_doc["output"] = {"text": str(response_doc["output"]), "metadata": {}}
+
+        if "metadata" not in response_doc["output"]:
+            response_doc["output"]["metadata"] = {}
+
+        response_doc["output"]["metadata"]["outputMessageIds"] = output_message_ids
+
+        # Remove _etag if present
+        if "_etag" in response_doc:
+            etag = response_doc.pop("_etag")
+        else:
+            etag = response_doc.get("_etag")
+
+        # Ensure partition key is in document
+        response_doc["pk"] = pk
+
+        # Update document
+        try:
+            if etag:
+                self.agent_store_container.replace_item(
+                    item=run_id,
+                    body=response_doc,
+                    if_match=etag,
+                )
+            else:
+                self.agent_store_container.upsert_item(response_doc)
+        except Exception as e:
+            logger.error("Failed to update response %s output message IDs: %s", run_id, e)
+            raise
+
+    def update_response_usage(
+        self,
+        run_id: str,
+        usage_data: dict[str, Any],
+        conversation_id: str | None = None,
+        openai_response_id: str | None = None,
+        output_message_ids: list[str] | None = None,
+    ) -> None:
+        """Update LLM usage data and optionally response IDs in response document.
+
+        Args:
+            run_id: Response ID
+            usage_data: Dictionary containing usage information (provider, model, tokenUsage, etc.)
+            conversation_id: Optional conversation ID for filtering
+            openai_response_id: Optional OpenAI Responses API response ID
+            output_message_ids: Optional list of OpenAI output message IDs
+        """
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+
+        # Use partition key for efficient query
+        user_id = "default"  # Default, will be updated from doc
+        tenant_id = self.default_tenant_id
+        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            if response_doc.get("type") not in ("response", "run"):
+                raise ValueError(f"Document {run_id} is not a response")
+            # Update user_id and tenant_id from doc
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
+
+        # Update OpenAI response ID if provided
+        if openai_response_id:
+            response_doc["openaiResponseId"] = openai_response_id
+
+        # Update output message IDs if provided
+        if output_message_ids:
+            if "output" not in response_doc:
+                response_doc["output"] = {"text": "", "metadata": {}}
+            if not isinstance(response_doc["output"], dict):
+                response_doc["output"] = {"text": str(response_doc["output"]), "metadata": {}}
+
+            if "metadata" not in response_doc["output"]:
+                response_doc["output"]["metadata"] = {}
+
+            response_doc["output"]["metadata"]["outputMessageIds"] = output_message_ids
+
+        # Update LLM usage data - merge with existing if present
+        existing_llm = response_doc.get("llm")
+        logger.info(
+            "Updating response usage for run %s. Existing llm: %s, New usage_data: %s", run_id, existing_llm, usage_data
+        )
+
+        if existing_llm and isinstance(existing_llm, dict):
+            # Merge usage data, combining token counts
+            merged_usage = existing_llm.copy()
+
+            # Update fields from new usage_data
+            merged_usage.update(usage_data)
+
+            # Merge token usage if both exist
+            if "tokenUsage" in existing_llm and "tokenUsage" in usage_data:
+                existing_tokens = existing_llm.get("tokenUsage", {})
+                new_tokens = usage_data.get("tokenUsage", {})
+                merged_tokens = existing_tokens.copy()
+
+                # Sum token counts
+                for key in ["inputTokens", "outputTokens", "totalTokens"]:
+                    existing_val = existing_tokens.get(key, 0) or 0
+                    new_val = new_tokens.get(key, 0) or 0
+                    merged_tokens[key] = existing_val + new_val
+
+                merged_usage["tokenUsage"] = merged_tokens
+            elif "tokenUsage" in usage_data:
+                # If only new data has tokenUsage, use it
+                merged_usage["tokenUsage"] = usage_data["tokenUsage"]
+
+            usage_data = merged_usage
+
+        response_doc["llm"] = usage_data
+        logger.info("Final llm data to save for run %s: %s", run_id, usage_data)
+
+        # Remove _etag if present
+        if "_etag" in response_doc:
+            etag = response_doc.pop("_etag")
+        else:
+            etag = response_doc.get("_etag")
+
+        # Ensure partition key is in document
+        response_doc["pk"] = pk
+
+        # Update document
+        try:
+            if etag:
+                self.agent_store_container.replace_item(
+                    item=run_id,
+                    body=response_doc,
+                    if_match=etag,
+                )
+            else:
+                self.agent_store_container.upsert_item(response_doc)
+        except Exception as e:
+            logger.error("Failed to update response %s usage data: %s", run_id, e)
+            raise
+
     def update_response_output(
         self,
         run_id: str,
@@ -968,7 +1167,7 @@ class CosmosChatStore(ChatStore):
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use partition key for efficient query
         user_id = "default"  # Default, will be updated from doc
         tenant_id = self.default_tenant_id
@@ -1165,19 +1364,19 @@ class CosmosChatStore(ChatStore):
         """Add a pending tool call.
 
         Creates a function_call document with status="pending" and optionally a toolApproval document for workflow metadata.
-        
+
         Args:
             run_id: Response ID
             tool_call: Tool call to add
             conversation_id: Optional conversation ID to avoid cross-partition queries
-            
+
         Returns:
             Partition key for the function call document
         """
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use default values and get from response if needed
         user_id = "default"
         tenant_id = self.default_tenant_id
@@ -1273,11 +1472,13 @@ class CosmosChatStore(ChatStore):
         logger.info("Added pending tool call %s for response %s", tool_call.id, run_id)
         return pk
 
-    def approve_tool_call(self, run_id: str, tool_call_id: str, approved: bool, partition_key: str | None = None) -> None:
+    def approve_tool_call(
+        self, run_id: str, tool_call_id: str, approved: bool, partition_key: str | None = None
+    ) -> None:
         """Approve or reject a tool call.
 
         Updates the function_call document status and optionally the toolApproval document.
-        
+
         Args:
             run_id: Response ID
             tool_call_id: Tool call ID
@@ -1348,19 +1549,19 @@ class CosmosChatStore(ChatStore):
         """Get tool call approval status.
 
         Checks the function_call document status first, falls back to toolApproval document.
-        
+
         Args:
             run_id: Response ID
             tool_call_id: Tool call ID
             conversation_id: Optional conversation ID to avoid cross-partition queries
-            
+
         Returns:
             Approval status (True/False) or None if pending
         """
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use default values and get from response if needed
         user_id = "default"
         tenant_id = self.default_tenant_id
@@ -1409,7 +1610,7 @@ class CosmosChatStore(ChatStore):
             return None
         tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
-        
+
         # Find function call document
         function_call_id = f"fc_{tool_call_id}"
         try:
@@ -1424,7 +1625,9 @@ class CosmosChatStore(ChatStore):
             pass
         return None
 
-    def request_parameters(self, run_id: str, tool_call_id: str, missing_parameters: list[str], conversation_id: str | None = None) -> None:
+    def request_parameters(
+        self, run_id: str, tool_call_id: str, missing_parameters: list[str], conversation_id: str | None = None
+    ) -> None:
         """Request missing parameters for a tool call.
 
         Args:
@@ -1436,7 +1639,7 @@ class CosmosChatStore(ChatStore):
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use default values and get from response if needed
         user_id = "default"
         tenant_id = self.default_tenant_id
@@ -1622,7 +1825,7 @@ class CosmosChatStore(ChatStore):
             raise ValueError(f"Run {run_id} not found")
         tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
-        
+
         # Read full document using partition key (more efficient)
         run_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
         run_doc["status"] = "cancelled"
@@ -1636,7 +1839,7 @@ class CosmosChatStore(ChatStore):
         # Require conversation_id - should be provided by chat_service
         if not conversation_id:
             raise ValueError("conversation_id is required")
-        
+
         # Use partition key for efficient query
         user_id = "default"
         tenant_id = self.default_tenant_id
@@ -1655,7 +1858,7 @@ class CosmosChatStore(ChatStore):
             raise ValueError(f"Run {run_id} not found")
         tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
-        
+
         # Read full document using partition key (more efficient)
         run_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
         run_doc["status"] = "completed"
@@ -1671,7 +1874,7 @@ class CosmosChatStore(ChatStore):
             raise ValueError(f"Run {run_id} not found")
         tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
-        
+
         # Read full document using partition key (more efficient)
         run_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
         run_doc["status"] = "error"
@@ -2031,7 +2234,7 @@ class CosmosChatStore(ChatStore):
         user_id = partition_info["userId"]
         tenant_id = partition_info["tenantId"]
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
-        
+
         # Read full document using partition key (more efficient)
         function_call_doc = self.agent_store_container.read_item(item=function_call_id, partition_key=pk)
 

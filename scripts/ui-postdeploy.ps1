@@ -28,3 +28,4 @@ az containerapp update `
     --output none
 
 Write-Host "API updated successfully!" -ForegroundColor Green
+

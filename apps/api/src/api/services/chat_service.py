@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import Any
 
 from api.config import Settings
@@ -25,6 +26,9 @@ class StreamState:
         self.current_content: str = ""
         self.current_tool_calls: dict[str, dict[str, Any]] = {}  # item_id -> tool_call_data
         self.current_function_arguments: dict[str, str] = {}  # item_id -> accumulated arguments
+        self.usage_data: dict[str, Any] | None = None  # LLM usage data from response
+        self.response_id: str | None = None  # OpenAI response ID
+        self.output_message_ids: list[str] | None = None  # Output message IDs
 
 
 class ChatService:
@@ -127,6 +131,30 @@ class ChatService:
                     if "error" in sse_event:
                         return
 
+            # Store usage data and IDs if available
+            if state.usage_data or hasattr(state, "response_id") or hasattr(state, "output_message_ids"):
+                try:
+                    logger.info(
+                        "Storing usage data and IDs for run %s: usage_data=%s, response_id=%s, output_message_ids=%s",
+                        run_id,
+                        state.usage_data,
+                        getattr(state, "response_id", None),
+                        getattr(state, "output_message_ids", None),
+                    )
+                    self.chat_store.update_response_usage(
+                        run_id,
+                        state.usage_data or {},
+                        conversation_id=conversation_id,
+                        openai_response_id=getattr(state, "response_id", None),
+                        output_message_ids=getattr(state, "output_message_ids", None),
+                    )
+                    logger.info("Successfully stored usage data and IDs for run %s", run_id)
+                except Exception as e:
+                    logger.error("Failed to store usage data and IDs for run %s: %s", run_id, e, exc_info=True)
+                    # Don't fail the request if usage tracking fails
+            else:
+                logger.warning("No usage data or IDs available to store for run %s", run_id)
+
             # Handle completed message
             message_done_event = self._handle_message_completion(state, run_id, conversation_id)
             if message_done_event:
@@ -147,9 +175,13 @@ class ChatService:
                     )
 
                     # Add to pending tool calls and get partition key
-                    partition_key = self.chat_store.add_pending_tool_call(run_id, tool_call, conversation_id=conversation_id)
+                    partition_key = self.chat_store.add_pending_tool_call(
+                        run_id, tool_call, conversation_id=conversation_id
+                    )
                     if not partition_key:
-                        logger.warning("Partition key not returned from add_pending_tool_call for tool call %s", tool_call.id)
+                        logger.warning(
+                            "Partition key not returned from add_pending_tool_call for tool call %s", tool_call.id
+                        )
 
                     # Store function call in message history
                     try:
@@ -250,7 +282,11 @@ class ChatService:
                     # Emit tool call requested event (after parameters are provided if needed)
                     # Always include partitionKey - it should always be set by add_pending_tool_call
                     if not partition_key:
-                        logger.error("Partition key is missing for tool call %s in run %s - this should not happen", tool_call.id, run_id)
+                        logger.error(
+                            "Partition key is missing for tool call %s in run %s - this should not happen",
+                            tool_call.id,
+                            run_id,
+                        )
                     yield self._format_sse_event(
                         "tool_call_requested",
                         {
@@ -328,7 +364,9 @@ class ChatService:
                             try:
                                 # Pass conversation_id to filter messages and prevent duplicates if run_id exists in multiple conversations
                                 try:
-                                    updated_messages = self.chat_store.get_messages(run_id, conversation_id=conversation_id)
+                                    updated_messages = self.chat_store.get_messages(
+                                        run_id, conversation_id=conversation_id
+                                    )
                                 except Exception as db_error:
                                     error_msg = str(db_error)
                                     # Check if it's a Cosmos DB rate limit error
@@ -379,6 +417,21 @@ class ChatService:
                                         # Check if it was an error event that should stop processing
                                         if "error" in sse_event2:
                                             return
+
+                                # Store usage data from continuation if available
+                                if state2.usage_data:
+                                    try:
+                                        self.chat_store.update_response_usage(
+                                            run_id, state2.usage_data, conversation_id=conversation_id
+                                        )
+                                    except Exception as e:
+                                        logger.warning(
+                                            "Failed to store continuation usage data for run %s: %s",
+                                            run_id,
+                                            e,
+                                            exc_info=True,
+                                        )
+                                        # Don't fail the request if usage tracking fails
 
                                 # Handle completed message from tool result
                                 # Always yield message_done even if content is empty (to signal completion)
@@ -735,8 +788,53 @@ class ChatService:
             sse_event = self._format_sse_event("error", {"runId": run_id, "message": error_msg})
             return sse_event, False, False  # Should return early
 
-        # Handle completion
+        # Handle completion - extract usage data and IDs
         if event_type == "response.completed":
+            # Get the response object - it might be the event itself or event.response
+            response_obj = event
+            if hasattr(event, "response"):
+                response_obj = getattr(event, "response")
+
+            # Extract response ID
+            response_id = (
+                getattr(response_obj, "id", None) or getattr(event, "id", None) or getattr(event, "response_id", None)
+            )
+
+            # Extract output message IDs from response object
+            output_message_ids = None
+            output = getattr(response_obj, "output", None) if hasattr(response_obj, "output") else None
+            if not output and isinstance(response_obj, dict):
+                output = response_obj.get("output")
+
+            if output:
+                output_message_ids = []
+                # Handle list of output items
+                if isinstance(output, list):
+                    for item in output:
+                        item_id = None
+                        if hasattr(item, "id"):
+                            item_id = getattr(item, "id")
+                        elif isinstance(item, dict):
+                            item_id = item.get("id")
+                        if item_id:
+                            output_message_ids.append(str(item_id))
+                # Handle single output object
+                elif hasattr(output, "id"):
+                    output_message_ids.append(str(getattr(output, "id")))
+                elif isinstance(output, dict) and "id" in output:
+                    output_message_ids.append(str(output.get("id")))
+
+                if not output_message_ids:
+                    output_message_ids = None
+                    logger.debug("No output message IDs found in response for run %s. Output: %s", run_id, output)
+
+            # Extract usage data from the response object
+            usage_data = self._extract_usage_data(event, run_id)
+            if usage_data:
+                state.usage_data = usage_data
+                # Store response IDs along with usage data in a single operation
+                state.response_id = response_id
+                state.output_message_ids = output_message_ids
             return None, True, True  # Should break from loop
 
         return None, True, False
@@ -882,10 +980,10 @@ class ChatService:
                 f"The assistant wants to call the tool '{tool_call.name}' but the following required parameters "
                 f"are missing: {', '.join(missing_params)}.\n\n"
                 f"Parameter details:\n" + "\n".join(param_descriptions) + "\n\n"
-                f"Based on the conversation context, please provide a brief, helpful explanation for each "
-                f"missing parameter that will help the user understand what value to provide. "
-                f"Format your response as a JSON object with parameter names as keys and explanations as values. "
-                f'For example: {{"param1": "explanation for param1", "param2": "explanation for param2"}}'
+                "Based on the conversation context, please provide a brief, helpful explanation for each "
+                "missing parameter that will help the user understand what value to provide. "
+                "Format your response as a JSON object with parameter names as keys and explanations as values. "
+                'For example: {"param1": "explanation for param1", "param2": "explanation for param2"}'
             )
 
             # Prepare messages for LLM
@@ -909,6 +1007,20 @@ class ChatService:
                 stream=False,
                 store=self.settings.openai_responses_store,
             )
+
+            # Extract and store usage data from non-streaming response
+            usage_data = self._extract_usage_data(response, run_id)
+            if usage_data and resolved_conv_id:
+                try:
+                    # Store usage data for parameter explanation call
+                    # Note: This is a separate API call, so we track it separately
+                    # For now, we'll merge it with the main response usage or log it
+                    self.chat_store.update_response_usage(run_id, usage_data, conversation_id=resolved_conv_id)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to store parameter explanation usage data for run %s: %s", run_id, e, exc_info=True
+                    )
+                    # Don't fail if usage tracking fails
 
             # Extract explanation text
             explanation_text = ""
@@ -941,6 +1053,130 @@ class ChatService:
             logger.error(f"Error getting parameter explanations from LLM: {e}", exc_info=True)
             # Return empty dict on error - UI will fall back to schema descriptions
             return {}
+
+    def _extract_usage_data(self, event: Any, run_id: str) -> dict[str, Any] | None:
+        """Extract usage data from Responses API response object.
+
+        Args:
+            event: Response event object (response.completed or response object)
+            run_id: Run ID for logging
+
+        Returns:
+            Dictionary with usage data or None if not available
+        """
+        try:
+            usage_data: dict[str, Any] = {
+                "provider": "openai",
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+
+            # Extract model/deployment name
+            model = getattr(event, "model", None) or self.settings.foundry_deployment_name
+            if model:
+                usage_data["model"] = model
+
+            # Extract response ID
+            response_id = getattr(event, "response_id", None) or getattr(event, "id", None)
+            if response_id:
+                usage_data["responseId"] = response_id
+
+            # Extract usage/token information
+            # Try multiple ways to get usage object
+            usage = None
+            if hasattr(event, "usage"):
+                usage = getattr(event, "usage", None)
+            elif hasattr(event, "response") and hasattr(event.response, "usage"):
+                usage = getattr(event.response, "usage", None)
+            elif isinstance(event, dict):
+                usage = event.get("usage") or (
+                    event.get("response", {}).get("usage") if isinstance(event.get("response"), dict) else None
+                )
+
+            if usage:
+                logger.debug("Found usage object for run %s, type: %s", run_id, type(usage).__name__)
+                token_usage: dict[str, Any] = {}
+
+                # Try different attribute names for token counts
+                input_tokens = None
+                output_tokens = None
+                total_tokens = None
+
+                # Try as object attributes first
+                if hasattr(usage, "input_tokens"):
+                    input_tokens = getattr(usage, "input_tokens")
+                elif hasattr(usage, "inputTokens"):
+                    input_tokens = getattr(usage, "inputTokens")
+                elif hasattr(usage, "prompt_tokens"):
+                    input_tokens = getattr(usage, "prompt_tokens")
+                # Try as dict
+                elif isinstance(usage, dict):
+                    input_tokens = usage.get("input_tokens") or usage.get("inputTokens") or usage.get("prompt_tokens")
+
+                # Try as object attributes first
+                if hasattr(usage, "output_tokens"):
+                    output_tokens = getattr(usage, "output_tokens")
+                elif hasattr(usage, "outputTokens"):
+                    output_tokens = getattr(usage, "outputTokens")
+                elif hasattr(usage, "completion_tokens"):
+                    output_tokens = getattr(usage, "completion_tokens")
+                # Try as dict
+                elif isinstance(usage, dict):
+                    output_tokens = (
+                        usage.get("output_tokens") or usage.get("outputTokens") or usage.get("completion_tokens")
+                    )
+
+                # Try as object attributes first
+                if hasattr(usage, "total_tokens"):
+                    total_tokens = getattr(usage, "total_tokens")
+                elif hasattr(usage, "totalTokens"):
+                    total_tokens = getattr(usage, "totalTokens")
+                # Try as dict
+                elif isinstance(usage, dict):
+                    total_tokens = usage.get("total_tokens") or usage.get("totalTokens")
+
+                logger.debug(
+                    "Token extraction for run %s: input=%s, output=%s, total=%s",
+                    run_id,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                )
+
+                if input_tokens is not None:
+                    token_usage["inputTokens"] = int(input_tokens)
+                if output_tokens is not None:
+                    token_usage["outputTokens"] = int(output_tokens)
+                if total_tokens is not None:
+                    token_usage["totalTokens"] = int(total_tokens)
+                elif input_tokens is not None and output_tokens is not None:
+                    token_usage["totalTokens"] = int(input_tokens) + int(output_tokens)
+
+                if token_usage:
+                    usage_data["tokenUsage"] = token_usage
+                    logger.info("Extracted token usage for run %s: %s", run_id, token_usage)
+                else:
+                    logger.warning(
+                        "Usage object found but no token counts extracted for run %s. Usage object: %s", run_id, usage
+                    )
+            else:
+                logger.warning(
+                    "No usage object found in event for run %s. Event type: %s, has usage attr: %s",
+                    run_id,
+                    type(event).__name__,
+                    hasattr(event, "usage"),
+                )
+
+            # Only return usage_data if we have at least model or tokenUsage
+            if "model" in usage_data or "tokenUsage" in usage_data:
+                logger.info("Extracted usage data for run %s: %s", run_id, usage_data)
+                return usage_data
+            else:
+                logger.warning("No usage data found in response for run %s", run_id)
+                return None
+
+        except Exception as e:
+            logger.warning("Failed to extract usage data from response for run %s: %s", run_id, e, exc_info=True)
+            return None
 
     def _format_sse_event(self, event_type: str, data: dict[str, Any]) -> str:
         """Format SSE event.

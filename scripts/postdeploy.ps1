@@ -32,3 +32,4 @@ if ($ServiceName) {
 }
 
 Write-Host "Post-deploy hook completed" -ForegroundColor Green
+

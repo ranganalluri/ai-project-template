@@ -166,7 +166,7 @@ class ToolRegistry:
                 }
                 for user in users
             ]
-            logger.info("Found %d users matching '%s'", len(results), name)  # noqa: G004
+            logger.info("Found %d users matching '%s'", len(results), name)
             return {
                 "query": name,
                 "results": results,

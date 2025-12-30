@@ -152,11 +152,7 @@ class CosmosUserService(UserService):
             )
             # Filter results case-insensitively in Python for true case-insensitive matching
             search_term_lower = search_term.lower()
-            filtered_items = [
-                item
-                for item in items
-                if search_term_lower in item.get("name", "").lower()
-            ]
+            filtered_items = [item for item in items if search_term_lower in item.get("name", "").lower()]
             return [User(user_id=item["user_id"], name=item["name"], email=item["email"]) for item in filtered_items]
         except Exception as e:
             logger.error("Error searching users: %s", e, exc_info=True)
@@ -170,12 +166,10 @@ class CosmosUserService(UserService):
                     )
                 )
                 search_term_lower = search_term.lower()
-                filtered_items = [
-                    item
-                    for item in all_items
-                    if search_term_lower in item.get("name", "").lower()
+                filtered_items = [item for item in all_items if search_term_lower in item.get("name", "").lower()]
+                return [
+                    User(user_id=item["user_id"], name=item["name"], email=item["email"]) for item in filtered_items
                 ]
-                return [User(user_id=item["user_id"], name=item["name"], email=item["email"]) for item in filtered_items]
             except Exception as e2:
                 logger.error("Error in fallback search: %s", e2, exc_info=True)
                 return []
