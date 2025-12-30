@@ -8,6 +8,7 @@ param sku string = 'S0'
 param managedIdentityResourceId string = ''
 param managedIdentityPrincipalId string = ''
 param projectName string = ''
+param deploymentCapacity int = 6
 param tags object = {}
 
 // Azure AI Foundry uses kind 'AIServices'
@@ -59,12 +60,15 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-09-01' = 
 }
 
 // GPT-4-1 Deployment (at account level, for use with project)
+// Capacity of 6 provides higher token throughput (approximately 6x the base rate)
+// Note: Actual token-per-minute limits are also controlled by Azure quotas
+// You may need to request a quota increase in the Azure portal for 6,000 TPM
 resource gpt4Deployment 'Microsoft.CognitiveServices/accounts/deployments@2025-09-01' = if (!empty(projectName)) {
   parent: aiFoundryAccount
   name: 'gpt-4.1'
   sku: {
     name: 'Standard'
-    capacity: 1
+    capacity: deploymentCapacity
   }
   properties: {
     model: {

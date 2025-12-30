@@ -127,7 +127,7 @@ jobs:
           
           try {
             # Run the postdeploy hook
-            & ./hooks/postdeploy.ps1
+            & ./scripts/postdeploy.ps1
           } catch {
             Write-Host "Error running post-deploy hook: $_" -ForegroundColor Red
             exit 1
