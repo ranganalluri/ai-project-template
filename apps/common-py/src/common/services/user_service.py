@@ -35,7 +35,6 @@ class UserService(ABC):
         """Delete a user."""
         pass
 
-<<<<<<< HEAD
     @abstractmethod
     def search_users(self, name: str) -> list[User]:
         """Search for users by name (partial match, case-insensitive).
@@ -47,9 +46,6 @@ class UserService(ABC):
             List of User objects matching the search term
         """
         pass
-
-=======
->>>>>>> origin/main
 
 class CosmosUserService(UserService):
     """Cosmos DB implementation of UserService."""
@@ -71,11 +67,6 @@ class CosmosUserService(UserService):
             container_name: Container name for users
             use_managed_identity: Use managed identity for authentication
         """
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> origin/main
         if use_managed_identity:
             credential = DefaultAzureCredential()
             self.client = CosmosClient(cosmos_endpoint, credential)
@@ -129,7 +120,6 @@ class CosmosUserService(UserService):
             return True
         except CosmosResourceNotFoundError:
             return False
-<<<<<<< HEAD
 
     def search_users(self, name: str) -> list[User]:
         """Search for users by name (partial match, case-insensitive).
@@ -181,5 +171,3 @@ class CosmosUserService(UserService):
             except Exception as e2:
                 logger.error("Error in fallback search: %s", e2, exc_info=True)
                 return []
-=======
->>>>>>> origin/main

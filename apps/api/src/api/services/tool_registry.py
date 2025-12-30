@@ -5,18 +5,14 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-<<<<<<< HEAD
 from common.services.user_service import UserService
 
-=======
->>>>>>> origin/main
 logger = logging.getLogger(__name__)
 
 
 class ToolRegistry:
     """Registry of available tools."""
 
-<<<<<<< HEAD
     def __init__(self, user_service: UserService | None = None) -> None:
         """Initialize tool registry.
 
@@ -26,12 +22,6 @@ class ToolRegistry:
         self.user_service = user_service
         self.tools = {
             "search_users": self._search_users,
-=======
-    def __init__(self) -> None:
-        """Initialize tool registry."""
-        self.tools = {
-            "search_docs": self._search_docs,
->>>>>>> origin/main
             "get_time": self._get_time,
         }
 
@@ -45,7 +35,6 @@ class ToolRegistry:
         """
         return [
             {
-<<<<<<< HEAD
                 "name": "search_users",
                 "type": "function",
                 "description": "Search for users by name. REQUIRES: 'name' parameter (string) containing the user's name to search for. Extract the name from the user's message.",
@@ -58,20 +47,6 @@ class ToolRegistry:
                         },
                     },
                     "required": ["name"],
-=======
-                "name": "search_docs",
-                "type": "function",
-                "description": "Search documentation for a query",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query",
-                        },
-                    },
-                    "required": ["query"],
->>>>>>> origin/main
                 },
             },
             {
@@ -86,7 +61,6 @@ class ToolRegistry:
             },
         ]
 
-<<<<<<< HEAD
     def get_tool_schema(self, tool_name: str) -> dict[str, Any] | None:
         """Get schema for a specific tool.
 
@@ -146,8 +120,6 @@ class ToolRegistry:
         properties = parameters_schema.get("properties", {})
         return properties.get(parameter_name)
 
-=======
->>>>>>> origin/main
     async def execute_tool(self, tool_name: str, arguments_json: str) -> Any:
         """Execute a tool.
 
@@ -174,7 +146,6 @@ class ToolRegistry:
         logger.info(f"Executed tool {tool_name} with result: {result}")
         return result
 
-<<<<<<< HEAD
     async def _search_users(self, name: str) -> dict[str, Any]:
         """Search Users.
 
@@ -210,25 +181,6 @@ class ToolRegistry:
                     {"title": "Sample User 2", "snippet": f"More content about {name}"},
                 ],
             }
-=======
-    async def _search_docs(self, query: str) -> dict[str, Any]:
-        """Search documentation (dummy implementation).
-
-        Args:
-            query: Search query
-
-        Returns:
-            Search results
-        """
-        # Dummy implementation
-        return {
-            "query": query,
-            "results": [
-                {"title": "Sample Doc 1", "snippet": f"Content related to {query}"},
-                {"title": "Sample Doc 2", "snippet": f"More content about {query}"},
-            ],
-        }
->>>>>>> origin/main
 
     async def _get_time(self) -> dict[str, Any]:
         """Get current time (dummy implementation).
@@ -242,7 +194,6 @@ class ToolRegistry:
         }
 
 
-<<<<<<< HEAD
 # Global tool registry instance (backward compatibility)
 # For production use, use get_tool_registry() from api.services
 tool_registry = ToolRegistry()
@@ -258,7 +209,3 @@ def get_tool_registry(user_service: UserService | None = None) -> ToolRegistry:
         ToolRegistry instance
     """
     return ToolRegistry(user_service=user_service)
-=======
-# Global tool registry instance
-tool_registry = ToolRegistry()
->>>>>>> origin/main

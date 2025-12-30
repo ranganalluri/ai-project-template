@@ -18,23 +18,33 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, files = [
     ? files.filter((f) => message.fileIds?.includes(f.fileId))
     : [];
 
+  const getAvatarText = () => {
+    if (isUser) return 'U';
+    if (isAssistant) return 'AI';
+    if (isTool) return 'T';
+    return 'S';
+  };
+
   return (
     <div className={`message-bubble message-bubble-${message.role}`}>
-      <div className="message-bubble-header">
-        <span className="message-bubble-role">
-          {isUser ? 'You' : isAssistant ? 'Assistant' : isTool ? 'Tool' : 'System'}
-        </span>
-      </div>
-      {messageFiles.length > 0 && (
-        <div className="message-bubble-files">
-          {messageFiles.map((file) => (
-            <div key={file.fileId} className="message-bubble-file-chip">
-              📎 {file.filename}
-            </div>
-          ))}
+      {!isUser && <div className="message-bubble-avatar">{getAvatarText()}</div>}
+      <div className="message-bubble-content-wrapper">
+        <div className="message-bubble-header">
+          <span className="message-bubble-role">
+            {isUser ? 'You' : isAssistant ? 'Assistant' : isTool ? 'Tool' : 'System'}
+          </span>
         </div>
-      )}
-      <div className="message-bubble-content">{message.content}</div>
+        <div className="message-bubble-content">{message.content}</div>
+        {messageFiles.length > 0 && (
+          <div className="message-bubble-files">
+            {messageFiles.map((file) => (
+              <div key={file.fileId} className="message-bubble-file-chip">
+                📎 {file.filename}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
