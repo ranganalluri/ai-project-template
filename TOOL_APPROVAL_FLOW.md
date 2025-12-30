@@ -67,3 +67,4 @@
 4. Check `approvedAt` timestamp is set
 5. Verify partition key matches (tenantId|userId|conversationId)
 
+

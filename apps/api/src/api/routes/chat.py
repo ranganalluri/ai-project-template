@@ -4,10 +4,17 @@ import logging
 import uuid
 
 from api.config import Settings, get_settings
+<<<<<<< HEAD
 from api.services import get_chat_store, get_file_storage, get_tool_registry
 from api.services.chat_service import ChatService
 from api.services.foundry_client import FoundryClient
 from common.models.chat import ChatRequest, FileUploadResponse, ParameterRequest, ToolApprovalRequest
+=======
+from api.services import get_chat_store, get_file_storage
+from api.services.chat_service import ChatService
+from api.services.foundry_client import FoundryClient
+from common.models.chat import ChatRequest, FileUploadResponse, ToolApprovalRequest
+>>>>>>> origin/main
 from common.services.chat_store import ChatStore
 from common.services.file_storage import FileStorage
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
@@ -35,7 +42,10 @@ def get_chat_service(
     foundry_client: FoundryClient = Depends(get_foundry_client),
     settings: Settings = Depends(get_settings),
     chat_store: ChatStore = Depends(get_chat_store),
+<<<<<<< HEAD
     tool_registry=Depends(get_tool_registry),
+=======
+>>>>>>> origin/main
 ) -> ChatService:
     """Get chat service dependency.
 
@@ -43,12 +53,19 @@ def get_chat_service(
         foundry_client: Foundry client
         settings: Application settings
         chat_store: Chat store
+<<<<<<< HEAD
         tool_registry: Tool registry with UserService configured
+=======
+>>>>>>> origin/main
 
     Returns:
         ChatService instance
     """
+<<<<<<< HEAD
     return ChatService(foundry_client, settings, chat_store, tool_registry_instance=tool_registry)
+=======
+    return ChatService(foundry_client, settings, chat_store)
+>>>>>>> origin/main
 
 
 @router.post("/files", response_model=FileUploadResponse)
@@ -113,6 +130,7 @@ async def stream_chat(
         StreamingResponse with SSE events
     """
     try:
+<<<<<<< HEAD
         # Create run - returns both run_id and conversation_id
         run_id, conversation_id = chat_store.create_run(request.thread_id)
 
@@ -125,6 +143,18 @@ async def stream_chat(
             async for event in chat_service.stream_chat(
                 run_id, request.messages, request.file_ids, conversation_id=conversation_id
             ):
+=======
+        # Create run
+        run_id = chat_store.create_run(request.thread_id)
+
+        # Store initial messages
+        for msg in request.messages:
+            chat_store.add_message(run_id, msg)
+
+        # Start streaming
+        async def event_generator():
+            async for event in chat_service.stream_chat(run_id, request.messages, request.file_ids):
+>>>>>>> origin/main
                 yield event
 
         return StreamingResponse(
@@ -179,7 +209,11 @@ async def approve_tool_call(
     Returns:
         Success message
     """
+<<<<<<< HEAD
     chat_store.approve_tool_call(run_id, tool_call_id, request.approved, partition_key=request.partition_key)
+=======
+    chat_store.approve_tool_call(run_id, tool_call_id, request.approved)
+>>>>>>> origin/main
     logger.info(
         "Tool call %s in run %s %s",
         tool_call_id,
@@ -191,6 +225,7 @@ async def approve_tool_call(
         "runId": run_id,
         "toolCallId": tool_call_id,
     }
+<<<<<<< HEAD
 
 
 @router.post("/runs/{run_id}/toolcalls/{tool_call_id}/parameters")
@@ -224,3 +259,5 @@ async def provide_parameters(
         "toolCallId": tool_call_id,
         "parameters": list(request.parameters.keys()),
     }
+=======
+>>>>>>> origin/main
