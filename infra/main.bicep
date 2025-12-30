@@ -16,6 +16,7 @@ param containerRegistryAdminEnabled bool = true
 param aiServicesSku string = 'S0'
 param keyVaultEnabled bool = true
 param aiProjectName string = ''
+param deploymentCapacity int = 6
 
 // Naming convention: companyName-region-environment-appname-index
 var resourceNamePrefix = '${companyName}-${regionCode}-${environment}'
@@ -99,6 +100,7 @@ module aiServices 'modules/ai-services.bicep' = {
     managedIdentityResourceId: managedIdentity.id
     managedIdentityPrincipalId: managedIdentity.properties.principalId
     projectName: (!empty(aiProjectName)) ? aiProjectName : '${resourceNamePrefix}-project-${resourceIndexSuffix}'
+    deploymentCapacity: deploymentCapacity
     tags: {
       region: regionCode
       createdBy: 'bicep'
