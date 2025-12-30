@@ -8,7 +8,7 @@ from typing import Any
 
 from api.config import Settings
 from api.services.foundry_client import FoundryClient
-from api.services.tool_registry import tool_registry
+from api.services.tool_registry import ToolRegistry, tool_registry
 from common.models.chat import ChatMessage, ToolCall
 from common.services.chat_store import ChatStore
 from common.services.instructions import AgentInstructions
@@ -35,6 +35,7 @@ class ChatService:
         foundry_client: FoundryClient,
         settings: Settings,
         chat_store: ChatStore,
+        tool_registry_instance: ToolRegistry | None = None,
     ) -> None:
         """Initialize chat service.
 
@@ -42,10 +43,12 @@ class ChatService:
             foundry_client: Foundry client instance
             settings: Application settings
             chat_store: Chat store instance
+            tool_registry_instance: Optional ToolRegistry instance (defaults to global tool_registry)
         """
         self.foundry_client = foundry_client
         self.settings = settings
         self.chat_store = chat_store
+        self.tool_registry = tool_registry_instance if tool_registry_instance is not None else tool_registry
 
     def _ensure_conversation_id(self, run_id: str, conversation_id: str | None) -> str:
         """Ensure conversation_id is available, fetching it if needed.
@@ -99,7 +102,7 @@ class ChatService:
             client = self.foundry_client.get_openai_client()
 
             # Get tools schema for Responses API
-            tools = tool_registry.get_responses_api_tools_schema()
+            tools = self.tool_registry.get_responses_api_tools_schema()
             chat_history = self.chat_store.get_messages(run_id, conversation_id=conversation_id)
             # chat_history = chat_history + messages
             chat_history_messages = self._convert_messages_for_responses_api(chat_history, file_ids)
@@ -166,7 +169,7 @@ class ChatService:
                     except json.JSONDecodeError:
                         arguments = {}
 
-                    is_valid, missing_params = tool_registry.validate_parameters(tool_call.name, arguments)
+                    is_valid, missing_params = self.tool_registry.validate_parameters(tool_call.name, arguments)
 
                     # If parameters are missing, request them from user BEFORE approval
                     if not is_valid and missing_params:
@@ -178,7 +181,7 @@ class ChatService:
                         # Build parameter info for user
                         param_info = []
                         for param_name in missing_params:
-                            param_schema = tool_registry.get_parameter_info(tool_call.name, param_name)
+                            param_schema = self.tool_registry.get_parameter_info(tool_call.name, param_name)
                             param_info.append(
                                 {
                                     "name": param_name,
@@ -289,7 +292,7 @@ class ChatService:
 
                         # Execute tool
                         try:
-                            result = await tool_registry.execute_tool(tool_call.name, tool_call.arguments_json)
+                            result = await self.tool_registry.execute_tool(tool_call.name, tool_call.arguments_json)
                             result_json = json.dumps(result)
 
                             # Store function call output in message history

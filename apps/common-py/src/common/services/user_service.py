@@ -35,6 +35,18 @@ class UserService(ABC):
         """Delete a user."""
         pass
 
+    @abstractmethod
+    def search_users(self, name: str) -> list[User]:
+        """Search for users by name (partial match, case-insensitive).
+
+        Args:
+            name: Name or partial name to search for
+
+        Returns:
+            List of User objects matching the search term
+        """
+        pass
+
 
 class CosmosUserService(UserService):
     """Cosmos DB implementation of UserService."""
@@ -110,3 +122,60 @@ class CosmosUserService(UserService):
             return True
         except CosmosResourceNotFoundError:
             return False
+
+    def search_users(self, name: str) -> list[User]:
+        """Search for users by name (partial match, case-insensitive).
+
+        Args:
+            name: Name or partial name to search for
+
+        Returns:
+            List of User objects matching the search term
+        """
+        if not name or not name.strip():
+            return []
+
+        search_term = name.strip()
+        # Cosmos DB CONTAINS is case-sensitive, so we'll do case-insensitive filtering in Python
+        # Query all users and filter by name (for small datasets) or use CONTAINS with case-sensitive match
+        # For better performance with large datasets, consider adding a normalized_name field
+        query = "SELECT * FROM c WHERE CONTAINS(c.name, @name)"
+        parameters = [{"name": "@name", "value": search_term}]
+
+        try:
+            items = list(
+                self.container.query_items(
+                    query=query,
+                    parameters=parameters,
+                    enable_cross_partition_query=True,
+                )
+            )
+            # Filter results case-insensitively in Python for true case-insensitive matching
+            search_term_lower = search_term.lower()
+            filtered_items = [
+                item
+                for item in items
+                if search_term_lower in item.get("name", "").lower()
+            ]
+            return [User(user_id=item["user_id"], name=item["name"], email=item["email"]) for item in filtered_items]
+        except Exception as e:
+            logger.error("Error searching users: %s", e, exc_info=True)
+            # Fallback: get all users and filter in Python (less efficient but more reliable)
+            try:
+                query_fallback = "SELECT * FROM c"
+                all_items = list(
+                    self.container.query_items(
+                        query=query_fallback,
+                        enable_cross_partition_query=True,
+                    )
+                )
+                search_term_lower = search_term.lower()
+                filtered_items = [
+                    item
+                    for item in all_items
+                    if search_term_lower in item.get("name", "").lower()
+                ]
+                return [User(user_id=item["user_id"], name=item["name"], email=item["email"]) for item in filtered_items]
+            except Exception as e2:
+                logger.error("Error in fallback search: %s", e2, exc_info=True)
+                return []

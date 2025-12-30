@@ -5,14 +5,21 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from common.services.user_service import UserService
+
 logger = logging.getLogger(__name__)
 
 
 class ToolRegistry:
     """Registry of available tools."""
 
-    def __init__(self) -> None:
-        """Initialize tool registry."""
+    def __init__(self, user_service: UserService | None = None) -> None:
+        """Initialize tool registry.
+
+        Args:
+            user_service: Optional UserService instance for search_users tool
+        """
+        self.user_service = user_service
         self.tools = {
             "search_users": self._search_users,
             "get_time": self._get_time,
@@ -140,22 +147,40 @@ class ToolRegistry:
         return result
 
     async def _search_users(self, name: str) -> dict[str, Any]:
-        """Search Users (dummy implementation).
+        """Search Users.
 
         Args:
             name: Name of the user to search for
 
         Returns:
-            Search results
+            Search results with user information
         """
-        # Dummy implementation
-        return {
-            "query": name,
-            "results": [
-                {"title": "Sample User 1", "snippet": f"Content related to {name}"},
-                {"title": "Sample User 2", "snippet": f"More content about {name}"},
-            ],
-        }
+        if self.user_service:
+            # Use real implementation with UserService
+            users = self.user_service.search_users(name)
+            results = [
+                {
+                    "user_id": user.user_id,
+                    "name": user.name,
+                    "email": user.email,
+                }
+                for user in users
+            ]
+            logger.info("Found %d users matching '%s'", len(results), name)  # noqa: G004
+            return {
+                "query": name,
+                "results": results,
+            }
+        else:
+            # Fall back to dummy implementation for backward compatibility
+            logger.warning("UserService not available, using dummy search_users implementation")
+            return {
+                "query": name,
+                "results": [
+                    {"title": "Sample User 1", "snippet": f"Content related to {name}"},
+                    {"title": "Sample User 2", "snippet": f"More content about {name}"},
+                ],
+            }
 
     async def _get_time(self) -> dict[str, Any]:
         """Get current time (dummy implementation).
@@ -169,5 +194,18 @@ class ToolRegistry:
         }
 
 
-# Global tool registry instance
+# Global tool registry instance (backward compatibility)
+# For production use, use get_tool_registry() from api.services
 tool_registry = ToolRegistry()
+
+
+def get_tool_registry(user_service: UserService | None = None) -> ToolRegistry:
+    """Get or create ToolRegistry instance with optional UserService.
+
+    Args:
+        user_service: Optional UserService instance for search_users tool
+
+    Returns:
+        ToolRegistry instance
+    """
+    return ToolRegistry(user_service=user_service)

@@ -4,7 +4,7 @@ import logging
 import uuid
 
 from api.config import Settings, get_settings
-from api.services import get_chat_store, get_file_storage
+from api.services import get_chat_store, get_file_storage, get_tool_registry
 from api.services.chat_service import ChatService
 from api.services.foundry_client import FoundryClient
 from common.models.chat import ChatRequest, FileUploadResponse, ParameterRequest, ToolApprovalRequest
@@ -35,6 +35,7 @@ def get_chat_service(
     foundry_client: FoundryClient = Depends(get_foundry_client),
     settings: Settings = Depends(get_settings),
     chat_store: ChatStore = Depends(get_chat_store),
+    tool_registry=Depends(get_tool_registry),
 ) -> ChatService:
     """Get chat service dependency.
 
@@ -42,11 +43,12 @@ def get_chat_service(
         foundry_client: Foundry client
         settings: Application settings
         chat_store: Chat store
+        tool_registry: Tool registry with UserService configured
 
     Returns:
         ChatService instance
     """
-    return ChatService(foundry_client, settings, chat_store)
+    return ChatService(foundry_client, settings, chat_store, tool_registry_instance=tool_registry)
 
 
 @router.post("/files", response_model=FileUploadResponse)
