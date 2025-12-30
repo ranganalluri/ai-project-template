@@ -41,7 +41,9 @@ class FoundryClient:
             except Exception as e:
                 logger.error(f"Failed to initialize AI Project client: {e}")
                 logger.error(f"Endpoint: {self.settings.foundry_endpoint}")
-                logger.error("Ensure the managed identity has 'Cognitive Services User' role (not 'Cognitive Services OpenAI User')")
+                logger.error(
+                    "Ensure the managed identity has 'Cognitive Services User' role (not 'Cognitive Services OpenAI User')"
+                )
                 raise
 
         return self._project_client

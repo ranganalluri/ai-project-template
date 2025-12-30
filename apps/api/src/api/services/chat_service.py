@@ -76,6 +76,7 @@ class ChatService:
                 tools=tools,
                 tool_choice="auto",
                 stream=True,
+                store=self.settings.openai_responses_store,
             )
 
             current_content = ""
@@ -89,6 +90,17 @@ class ChatService:
 
                 # Handle different event types from Responses API
                 event_type = getattr(event, "type", None)
+
+                # Handle response.created event to capture OpenAI response ID
+                if event_type == "response.created":
+                    openai_response_id = getattr(event, "response_id", None) or getattr(event, "id", None)
+                    if openai_response_id:
+                        try:
+                            self.chat_store.update_response_openai_id(
+                                run_id, openai_response_id, conversation_id=conversation_id
+                            )
+                        except Exception as e:
+                            logger.warning("Failed to store OpenAI response ID: %s", e)
 
                 # Handle text delta events
                 if event_type == "response.output_text.delta":
@@ -162,8 +174,8 @@ class ChatService:
 
             # Handle completed message
             if current_content:
-                message = ChatMessage(role="assistant", content=current_content)
-                self.chat_store.add_message(run_id, message)
+                # Update response output text (assistant messages go to response.output.text)
+                self.chat_store.update_response_output(run_id, current_content, conversation_id=conversation_id)
                 event_data = {"runId": run_id, "message": {"role": "assistant", "content": current_content}}
                 # Always include conversationId if available
                 if conversation_id:
@@ -189,6 +201,17 @@ class ChatService:
 
                     # Add to pending tool calls
                     self.chat_store.add_pending_tool_call(run_id, tool_call)
+
+                    # Store function call in message history
+                    try:
+                        self.chat_store.add_function_call(
+                            run_id=run_id,
+                            call_id=tool_call.id,
+                            name=tool_call.name,
+                            arguments=tool_call.arguments_json,
+                        )
+                    except Exception as e:
+                        logger.warning("Failed to store function call in message history: %s", e)
 
                     # Emit tool call requested event
                     yield self._format_sse_event(
@@ -220,20 +243,105 @@ class ChatService:
                         # Timeout - reject
                         approval = False
 
+                    # Store approval/rejection decision in message history
+                    # (This will be handled when we update get_messages to include approvals)
+
                     if approval:
+                        # Check for missing parameters before execution
+                        try:
+                            arguments = json.loads(tool_call.arguments_json) if tool_call.arguments_json else {}
+                        except json.JSONDecodeError:
+                            arguments = {}
+
+                        is_valid, missing_params = tool_registry.validate_parameters(tool_call.name, arguments)
+
+                        # If parameters are missing, request them from user
+                        if not is_valid and missing_params:
+                            # Store parameter request
+                            self.chat_store.request_parameters(run_id, tool_call.id, missing_params)
+
+                            # Build parameter info for user
+                            param_info = []
+                            for param_name in missing_params:
+                                param_schema = tool_registry.get_parameter_info(tool_call.name, param_name)
+                                param_info.append(
+                                    {
+                                        "name": param_name,
+                                        "type": param_schema.get("type", "string") if param_schema else "string",
+                                        "description": param_schema.get("description", "") if param_schema else "",
+                                    }
+                                )
+
+                            # Emit parameter request event
+                            yield self._format_sse_event(
+                                "parameter_request",
+                                {
+                                    "runId": run_id,
+                                    "toolCallId": tool_call.id,
+                                    "toolName": tool_call.name,
+                                    "missingParameters": param_info,
+                                },
+                            )
+
+                            # Wait for user to provide parameters
+                            provided_params = None
+                            max_wait = 300  # 5 minutes timeout
+                            wait_time = 0
+                            while provided_params is None and wait_time < max_wait:
+                                await asyncio.sleep(0.5)
+                                wait_time += 0.5
+
+                                # Check if parameters have been provided
+                                still_missing = self.chat_store.get_parameter_request(run_id, tool_call.id)
+                                if still_missing is None:
+                                    # All parameters provided, get them from the store
+                                    provided_params = self.chat_store.get_provided_parameters(run_id, tool_call.id)
+                                    if provided_params:
+                                        break
+
+                                if self.chat_store.is_cancelled(run_id):
+                                    yield self._format_sse_event(
+                                        "error", {"runId": run_id, "message": "Run was cancelled"}
+                                    )
+                                    return
+
+                            if provided_params is None:
+                                # Timeout - skip execution
+                                yield self._format_sse_event(
+                                    "error",
+                                    {
+                                        "runId": run_id,
+                                        "message": f"Timeout waiting for parameters: {', '.join(missing_params)}",
+                                    },
+                                )
+                                continue
+
+                            # Update tool call arguments with provided parameters
+                            arguments.update(provided_params)
+                            tool_call.arguments_json = json.dumps(arguments)
+
                         # Execute tool
                         try:
                             result = await tool_registry.execute_tool(tool_call.name, tool_call.arguments_json)
                             result_json = json.dumps(result)
 
-                            # Add tool result to messages with tool_call_id
-                            tool_result_message = ChatMessage(
-                                role="tool",
-                                content=result_json,
-                            )
-                            # Store tool_call_id in message for OpenAI format
-                            setattr(tool_result_message, "tool_call_id", tool_call.id)
-                            self.chat_store.add_message(run_id, tool_result_message)
+                            # Store function call output in message history
+                            try:
+                                self.chat_store.add_function_call_output(
+                                    run_id=run_id,
+                                    call_id=tool_call.id,
+                                    output=result_json,
+                                )
+                            except Exception as e:
+                                logger.warning("Failed to store function call output in message history: %s", e)
+                                # If storing function call output fails, still add as regular message for backward compatibility
+                                tool_result_message = ChatMessage(
+                                    role="tool",
+                                    content=result_json,
+                                )
+                                self.chat_store.add_message(
+                                    run_id, tool_result_message, conversation_id=conversation_id
+                                )
 
                             # Emit tool call result
                             yield self._format_sse_event(
@@ -246,7 +354,8 @@ class ChatService:
                             )
 
                             # Continue with tool result - make another API call with updated messages
-                            updated_messages = self.chat_store.get_messages(run_id)
+                            # Pass conversation_id to filter messages and prevent duplicates if run_id exists in multiple conversations
+                            updated_messages = self.chat_store.get_messages(run_id, conversation_id=conversation_id)
                             # Convert to Responses API format for the next call
                             responses_messages2 = self._convert_messages_for_responses_api(updated_messages, file_ids)
 
@@ -257,6 +366,7 @@ class ChatService:
                                 tools=tools,
                                 tool_choice="auto",
                                 stream=True,
+                                store=self.settings.openai_responses_store,
                             )
 
                             current_content2 = ""
@@ -324,8 +434,10 @@ class ChatService:
 
                             # Handle completed message from tool result
                             if current_content2:
-                                message2 = ChatMessage(role="assistant", content=current_content2)
-                                self.chat_store.add_message(run_id, message2)
+                                # Update response output text (assistant messages go to response.output.text)
+                                self.chat_store.update_response_output(
+                                    run_id, current_content2, conversation_id=conversation_id
+                                )
                                 event_data = {
                                     "runId": run_id,
                                     "message": {
@@ -352,6 +464,18 @@ class ChatService:
                                 {"runId": run_id, "message": f"Tool execution error: {e!s}"},
                             )
                     else:
+                        # Tool call rejected - store rejection in message history
+                        # Store a function call output with rejection status
+                        try:
+                            rejection_output = json.dumps({"status": "rejected", "reason": "User rejected tool call"})
+                            self.chat_store.add_function_call_output(
+                                run_id=run_id,
+                                call_id=tool_call.id,
+                                output=rejection_output,
+                            )
+                        except Exception as e:
+                            logger.warning("Failed to store function call rejection in message history: %s", e)
+
                         # Tool call rejected
                         yield self._format_sse_event(
                             "error",
@@ -415,20 +539,21 @@ class ChatService:
 
     def _convert_messages_for_responses_api(
         self, messages: list[ChatMessage], file_ids: list[str]
-    ) -> list[EasyInputMessage]:
-        """Convert messages to Responses API format using EasyInputMessage.
+    ) -> list[EasyInputMessage | dict[str, Any]]:
+        """Convert messages to Responses API format, including function calls and outputs.
 
-        The Responses API expects EasyInputMessage objects with roles:
-        "user", "assistant", "system", or "developer".
+        The Responses API can accept:
+        - EasyInputMessage objects for regular messages
+        - Dictionary objects for function calls and function call outputs
 
         Args:
-            messages: List of chat messages
+            messages: List of chat messages (may include function calls in content_items)
             file_ids: List of attached file IDs
 
         Returns:
-            List of EasyInputMessage objects
+            List of EasyInputMessage objects and/or dictionaries for function calls/outputs
         """
-        responses_messages: list[EasyInputMessage] = []
+        responses_messages: list[EasyInputMessage | dict[str, Any]] = []
 
         # Add system message with file context if files are attached
         if file_ids:
@@ -442,25 +567,58 @@ class ChatService:
             )
 
         for msg in messages:
-            # Map roles - Responses API supports: user, assistant, system, developer
-            # Note: "tool" role is not supported in EasyInputMessage, so we skip tool messages
-            # Tool outputs should be handled differently in the Responses API
-            if msg.role == "tool":
-                # Tool messages are not directly supported in EasyInputMessage
-                # They should be converted to function_call_output items or handled separately
-                # For now, skip tool messages as they need special handling
-                continue
-            elif msg.role in ["user", "assistant", "system"]:
-                responses_messages.append(
-                    EasyInputMessage(
-                        role=msg.role,  # type: ignore
-                        content=msg.content,
-                        type="message",
-                    )
-                )
+            # Check if message has content_items with function calls or outputs
+            if msg.content_items:
+                for content_item in msg.content_items:
+                    content_type = content_item.get("type")
+
+                    if content_type == "function_call":
+                        # Convert function call to Responses API format
+                        responses_messages.append(
+                            {
+                                "type": "function_call",
+                                "call_id": content_item.get("call_id", ""),
+                                "name": content_item.get("name", ""),
+                                "arguments": content_item.get("arguments", "{}"),
+                            }
+                        )
+                    elif content_type == "function_call_output":
+                        # Convert function call output to Responses API format
+                        responses_messages.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": content_item.get("call_id", ""),
+                                "output": content_item.get("output", ""),
+                            }
+                        )
+                    elif content_type == "text":
+                        # Regular text message - add as EasyInputMessage
+                        if msg.role in ["user", "assistant", "system"]:
+                            responses_messages.append(
+                                EasyInputMessage(
+                                    role=msg.role,  # type: ignore
+                                    content=content_item.get("text", ""),
+                                    type="message",
+                                )
+                            )
             else:
-                # Unknown role, skip or log warning
-                logger.warning(f"Unknown role '{msg.role}' in message, skipping")
+                # Legacy format - no content_items, use content string
+                # Map roles - Responses API supports: user, assistant, system, developer
+                if msg.role == "tool":
+                    # Tool messages from legacy format - skip as they should be in content_items
+                    logger.debug("Skipping legacy tool message without content_items")
+                    continue
+                elif msg.role in ["user", "assistant", "system"]:
+                    responses_messages.append(
+                        EasyInputMessage(
+                            role=msg.role,  # type: ignore
+                            content=msg.content,
+                            type="message",
+                        )
+                    )
+                else:
+                    # Unknown role, skip or log warning
+                    logger.warning(f"Unknown role '{msg.role}' in message, skipping")
 
         return responses_messages
 

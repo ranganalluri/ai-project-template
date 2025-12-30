@@ -54,6 +54,65 @@ class ToolRegistry:
             },
         ]
 
+    def get_tool_schema(self, tool_name: str) -> dict[str, Any] | None:
+        """Get schema for a specific tool.
+
+        Args:
+            tool_name: Name of the tool
+
+        Returns:
+            Tool schema dictionary or None if tool not found
+        """
+        for tool in self.get_responses_api_tools_schema():
+            if tool["name"] == tool_name:
+                return tool
+        return None
+
+    def validate_parameters(self, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, list[str]]:
+        """Validate tool parameters and identify missing required parameters.
+
+        Args:
+            tool_name: Name of the tool
+            arguments: Tool arguments dictionary
+
+        Returns:
+            Tuple of (is_valid, missing_parameters)
+            - is_valid: True if all required parameters are present
+            - missing_parameters: List of missing required parameter names
+        """
+        schema = self.get_tool_schema(tool_name)
+        if not schema:
+            return False, []
+
+        parameters_schema = schema.get("parameters", {})
+        required = parameters_schema.get("required", [])
+
+        missing = []
+        for param_name in required:
+            # Check if parameter is missing or None or empty string
+            if param_name not in arguments or arguments[param_name] is None or arguments[param_name] == "":
+                missing.append(param_name)
+
+        return len(missing) == 0, missing
+
+    def get_parameter_info(self, tool_name: str, parameter_name: str) -> dict[str, Any] | None:
+        """Get information about a specific parameter from tool schema.
+
+        Args:
+            tool_name: Name of the tool
+            parameter_name: Name of the parameter
+
+        Returns:
+            Parameter info dictionary (type, description, etc.) or None if not found
+        """
+        schema = self.get_tool_schema(tool_name)
+        if not schema:
+            return None
+
+        parameters_schema = schema.get("parameters", {})
+        properties = parameters_schema.get("properties", {})
+        return properties.get(parameter_name)
+
     async def execute_tool(self, tool_name: str, arguments_json: str) -> Any:
         """Execute a tool.
 

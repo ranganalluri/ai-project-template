@@ -7,7 +7,7 @@ from api.config import Settings, get_settings
 from api.services import get_chat_store, get_file_storage
 from api.services.chat_service import ChatService
 from api.services.foundry_client import FoundryClient
-from common.models.chat import ChatRequest, FileUploadResponse, ToolApprovalRequest
+from common.models.chat import ChatRequest, FileUploadResponse, ParameterRequest, ToolApprovalRequest
 from common.services.chat_store import ChatStore
 from common.services.file_storage import FileStorage
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
@@ -111,16 +111,18 @@ async def stream_chat(
         StreamingResponse with SSE events
     """
     try:
-        # Create run
-        run_id = chat_store.create_run(request.thread_id)
+        # Create run - returns both run_id and conversation_id
+        run_id, conversation_id = chat_store.create_run(request.thread_id)
 
         # Store initial messages
         for msg in request.messages:
-            chat_store.add_message(run_id, msg)
+            chat_store.add_message(run_id, msg, conversation_id=conversation_id)
 
         # Start streaming
         async def event_generator():
-            async for event in chat_service.stream_chat(run_id, request.messages, request.file_ids):
+            async for event in chat_service.stream_chat(
+                run_id, request.messages, request.file_ids, conversation_id=conversation_id
+            ):
                 yield event
 
         return StreamingResponse(
@@ -186,4 +188,37 @@ async def approve_tool_call(
         "status": "approved" if request.approved else "rejected",
         "runId": run_id,
         "toolCallId": tool_call_id,
+    }
+
+
+@router.post("/runs/{run_id}/toolcalls/{tool_call_id}/parameters")
+async def provide_parameters(
+    run_id: str,
+    tool_call_id: str,
+    request: ParameterRequest,
+    chat_store: ChatStore = Depends(get_chat_store),
+) -> dict[str, str]:
+    """Provide parameters for a tool call.
+
+    Args:
+        run_id: Run ID
+        tool_call_id: Tool call ID
+        request: Parameter request with parameters dictionary
+        chat_store: Chat store
+
+    Returns:
+        Success message
+    """
+    chat_store.provide_parameters(run_id, tool_call_id, request.parameters)
+    logger.info(
+        "Provided parameters for tool call %s in run %s: %s",
+        tool_call_id,
+        run_id,
+        list(request.parameters.keys()),
+    )
+    return {
+        "status": "parameters_provided",
+        "runId": run_id,
+        "toolCallId": tool_call_id,
+        "parameters": list(request.parameters.keys()),
     }
