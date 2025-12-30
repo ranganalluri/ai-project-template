@@ -56,11 +56,8 @@ class Settings(BaseSettings):
     foundry_project_connection_string: str | None = None
     foundry_deployment_name: str = "gpt-4.1"
     foundry_endpoint: str | None = None
-<<<<<<< HEAD
     # OpenAI Responses API conversation storage (default: False to prevent 30-day retention)
     openai_responses_store: bool = False
-=======
->>>>>>> origin/main
 
     # Azure Service Bus
     azure_servicebus_connection_string: str | None = None
