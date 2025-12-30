@@ -16,6 +16,10 @@ from fastapi.responses import JSONResponse
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Disable Cosmos DB INFO logging (only show WARNING and above)
+logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
+logging.getLogger("azure.cosmos._cosmos_http_logging_policy").setLevel(logging.WARNING)
+
 # Initialize settings
 settings = get_settings()
 

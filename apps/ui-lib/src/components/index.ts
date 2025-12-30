@@ -5,4 +5,5 @@ export * from './MessageBubble';
 export * from './Composer';
 export * from './FileUploadButton';
 export * from './ToolApprovalModal';
+export * from './ParameterInputForm';
 export * from './Toast';

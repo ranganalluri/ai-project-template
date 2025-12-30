@@ -57,29 +57,55 @@ class ChatStore(ABC):
         """
 
     @abstractmethod
-    def add_pending_tool_call(self, run_id: str, tool_call: ToolCall) -> None:
-        """Add a pending tool call."""
+    def add_pending_tool_call(self, run_id: str, tool_call: ToolCall, conversation_id: str | None = None) -> str:
+        """Add a pending tool call.
+        
+        Args:
+            run_id: Response ID
+            tool_call: Tool call to add
+            conversation_id: Optional conversation ID to avoid cross-partition queries
+            
+        Returns:
+            Partition key for the function call document
+        """
 
     @abstractmethod
-    def approve_tool_call(self, run_id: str, tool_call_id: str, approved: bool) -> None:
-        """Approve or reject a tool call."""
+    def approve_tool_call(self, run_id: str, tool_call_id: str, approved: bool, partition_key: str | None = None) -> None:
+        """Approve or reject a tool call.
+        
+        Args:
+            run_id: Response ID
+            tool_call_id: Tool call ID
+            approved: Whether the tool call is approved
+            partition_key: Optional partition key for the function call document
+        """
 
     @abstractmethod
-    def get_tool_call_approval(self, run_id: str, tool_call_id: str) -> bool | None:
-        """Get tool call approval status."""
+    def get_tool_call_approval(self, run_id: str, tool_call_id: str, conversation_id: str | None = None) -> bool | None:
+        """Get tool call approval status.
+        
+        Args:
+            run_id: Response ID
+            tool_call_id: Tool call ID
+            conversation_id: Optional conversation ID to avoid cross-partition queries
+            
+        Returns:
+            Approval status (True/False) or None if pending
+        """
 
     @abstractmethod
     def get_pending_tool_call(self, run_id: str, tool_call_id: str) -> ToolCall | None:
         """Get a pending tool call."""
 
     @abstractmethod
-    def request_parameters(self, run_id: str, tool_call_id: str, missing_parameters: list[str]) -> None:
+    def request_parameters(self, run_id: str, tool_call_id: str, missing_parameters: list[str], conversation_id: str | None = None) -> None:
         """Request missing parameters for a tool call.
 
         Args:
             run_id: Response ID
             tool_call_id: Tool call ID
             missing_parameters: List of missing parameter names
+            conversation_id: Optional conversation ID to avoid cross-partition queries
         """
 
     @abstractmethod
@@ -121,8 +147,16 @@ class ChatStore(ABC):
         """Cancel a run."""
 
     @abstractmethod
-    def is_cancelled(self, run_id: str) -> bool:
-        """Check if a run is cancelled."""
+    def is_cancelled(self, run_id: str, conversation_id: str | None = None) -> bool:
+        """Check if a run is cancelled.
+        
+        Args:
+            run_id: Response ID
+            conversation_id: Optional conversation ID to avoid cross-partition queries
+            
+        Returns:
+            True if cancelled, False otherwise
+        """
 
     @abstractmethod
     def complete_run(self, run_id: str) -> None:
@@ -196,7 +230,7 @@ class ChatStore(ABC):
         """
 
     @abstractmethod
-    def add_function_call(self, run_id: str, call_id: str, name: str, arguments: str) -> str:
+    def add_function_call(self, run_id: str, call_id: str, name: str, arguments: str, conversation_id: str | None = None) -> str:
         """Add a function call to a response.
 
         Args:
@@ -204,6 +238,7 @@ class ChatStore(ABC):
             call_id: Function call ID (from LLM)
             name: Function/tool name
             arguments: Function arguments as JSON string
+            conversation_id: Optional conversation ID to avoid cross-partition queries
 
         Returns:
             Function call document ID
@@ -498,6 +533,26 @@ class CosmosChatStore(ChatStore):
         except CosmosResourceNotFoundError:
             return None
 
+    def _get_partition_info_from_run_id(self, run_id: str) -> tuple[str, str, str] | None:
+        """Get partition info (tenant_id, user_id, conversation_id) from run_id using minimal projection.
+        
+        Returns:
+            Tuple of (tenant_id, user_id, conversation_id) or None if not found
+        """
+        # Use projection to only fetch needed fields (reduces RU consumption)
+        query = "SELECT c.tenantId, c.userId, c.conversationId FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
+        items = list(
+            self.agent_store_container.query_items(
+                query=query,
+                parameters=[{"name": "@run_id", "value": run_id}],
+                enable_cross_partition_query=True,
+            )
+        )
+        if not items:
+            return None
+        doc = items[0]
+        return (doc["tenantId"], doc["userId"], doc["conversationId"])
+
     def _query_by_type(
         self,
         tenant_id: str,
@@ -508,12 +563,21 @@ class CosmosChatStore(ChatStore):
         limit: int | None = None,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """Query documents by type within a partition."""
+        """Query documents by type within a partition.
+        
+        Optimized to use server-side pagination to reduce RU consumption.
+        """
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
         query = "SELECT * FROM c WHERE c.pk = @pk AND c.type = @type"
 
         if order_by:
             query += f" ORDER BY c.{order_by} DESC"
+
+        # Use server-side pagination to reduce RU consumption
+        if limit is not None:
+            query += f" OFFSET {offset} LIMIT {limit}"
+        elif offset > 0:
+            query += f" OFFSET {offset}"
 
         parameters = [
             {"name": "@pk", "value": pk},
@@ -527,11 +591,6 @@ class CosmosChatStore(ChatStore):
                 partition_key=pk,
             )
         )
-
-        if offset > 0:
-            items = items[offset:]
-        if limit:
-            items = items[:limit]
 
         return items
 
@@ -617,7 +676,8 @@ class CosmosChatStore(ChatStore):
                 raise ValueError(f"Response {run_id} not found")
         else:
             # Fall back to cross-partition query if conversation_id not provided
-            query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
+            # Use projection to only fetch needed fields for partition key (reduces RU)
+            query = "SELECT c.id, c.conversationId, c.userId, c.tenantId FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
             items = list(
                 self.agent_store_container.query_items(
                     query=query,
@@ -632,6 +692,8 @@ class CosmosChatStore(ChatStore):
             user_id = response_doc["userId"]
             tenant_id = response_doc["tenantId"]
             pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+            # Now read the full document using partition key (more efficient)
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
 
         # Ensure response document has input array (for backward compatibility with old "run" documents)
         if "input" not in response_doc:
@@ -678,6 +740,7 @@ class CosmosChatStore(ChatStore):
         call_id: str,
         name: str,
         arguments: str,
+        conversation_id: str | None = None,
         user_id: str = "default",
         tenant_id: str | None = None,
     ) -> str:
@@ -688,6 +751,7 @@ class CosmosChatStore(ChatStore):
             call_id: Function call ID (from LLM)
             name: Function/tool name
             arguments: Function arguments as JSON string
+            conversation_id: Optional conversation ID to avoid cross-partition queries
             user_id: User ID (default: "default")
             tenant_id: Tenant ID (default: from settings)
 
@@ -696,23 +760,19 @@ class CosmosChatStore(ChatStore):
         """
         tenant_id = tenant_id or self.default_tenant_id
 
-        # Get response to find conversation_id
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
-            raise ValueError(f"Response {run_id} not found")
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+        
+        # Use partition key for efficient query
+        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
         now = datetime.now(UTC).isoformat()
 
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
@@ -755,6 +815,7 @@ class CosmosChatStore(ChatStore):
         run_id: str,
         call_id: str,
         output: str,
+        conversation_id: str | None = None,
         user_id: str = "default",
         tenant_id: str | None = None,
     ) -> str:
@@ -764,6 +825,7 @@ class CosmosChatStore(ChatStore):
             run_id: Response ID (kept as run_id for backward compatibility)
             call_id: Function call ID (must match the call_id from add_function_call)
             output: Function output as JSON string
+            conversation_id: Optional conversation ID to avoid cross-partition queries
             user_id: User ID (default: "default")
             tenant_id: Tenant ID (default: from settings)
 
@@ -772,24 +834,19 @@ class CosmosChatStore(ChatStore):
         """
         tenant_id = tenant_id or self.default_tenant_id
 
-        # Get response to find conversation_id (requires cross-partition query since we only have run_id)
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,  # Required when querying by ID only
-            )
-        )
-
-        if not items:
-            raise ValueError(f"Response {run_id} not found")
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+        
+        # Use partition key for efficient query
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
 
         # Find function call document by call_id and responseId
         function_call_id = f"fc_{call_id}"
@@ -850,36 +907,24 @@ class CosmosChatStore(ChatStore):
             openai_response_id: OpenAI Responses API response ID
             conversation_id: Optional conversation ID for filtering
         """
-        # Get response document using partition key
+        # Require conversation_id - should be provided by chat_service
         if not conversation_id:
-            # Need to get conversation_id first
-            query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-            items = list(
-                self.agent_store_container.query_items(
-                    query=query,
-                    parameters=[{"name": "@run_id", "value": run_id}],
-                    enable_cross_partition_query=True,
-                )
-            )
-            if not items:
-                raise ValueError(f"Response {run_id} not found")
-            response_doc = items[0]
-            conversation_id = response_doc["conversationId"]
-            user_id = response_doc["userId"]
-            tenant_id = response_doc["tenantId"]
-        else:
-            # Use partition key for efficient query
-            user_id = "default"  # Default, will be updated from doc
-            tenant_id = self.default_tenant_id
-            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
-            try:
-                response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
-                if response_doc.get("type") not in ("response", "run"):
-                    raise ValueError(f"Document {run_id} is not a response")
-            except CosmosResourceNotFoundError:
-                raise ValueError(f"Response {run_id} not found")
-
+            raise ValueError("conversation_id is required")
+        
+        # Use partition key for efficient query
+        user_id = "default"  # Default, will be updated from doc
+        tenant_id = self.default_tenant_id
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            if response_doc.get("type") not in ("response", "run"):
+                raise ValueError(f"Document {run_id} is not a response")
+            # Update user_id and tenant_id from doc
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
 
         # Update OpenAI response ID
         response_doc["openaiResponseId"] = openai_response_id
@@ -920,36 +965,24 @@ class CosmosChatStore(ChatStore):
             output_text: Output text to set
             conversation_id: Optional conversation ID for filtering
         """
-        # Get response document using partition key
+        # Require conversation_id - should be provided by chat_service
         if not conversation_id:
-            # Need to get conversation_id first
-            query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-            items = list(
-                self.agent_store_container.query_items(
-                    query=query,
-                    parameters=[{"name": "@run_id", "value": run_id}],
-                    enable_cross_partition_query=True,
-                )
-            )
-            if not items:
-                raise ValueError(f"Response {run_id} not found")
-            response_doc = items[0]
-            conversation_id = response_doc["conversationId"]
-            user_id = response_doc["userId"]
-            tenant_id = response_doc["tenantId"]
-        else:
-            # Use partition key for efficient query
-            user_id = "default"  # Default, will be updated from doc
-            tenant_id = self.default_tenant_id
-            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
-            try:
-                response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
-                if response_doc.get("type") not in ("response", "run"):
-                    raise ValueError(f"Document {run_id} is not a response")
-            except CosmosResourceNotFoundError:
-                raise ValueError(f"Response {run_id} not found")
-
+            raise ValueError("conversation_id is required")
+        
+        # Use partition key for efficient query
+        user_id = "default"  # Default, will be updated from doc
+        tenant_id = self.default_tenant_id
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            if response_doc.get("type") not in ("response", "run"):
+                raise ValueError(f"Document {run_id} is not a response")
+            # Update user_id and tenant_id from doc
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
 
         # Ensure output field exists
         if "output" not in response_doc:
@@ -991,19 +1024,11 @@ class CosmosChatStore(ChatStore):
         Returns:
             Conversation ID or None if response not found
         """
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Use projection to only fetch conversationId (reduces RU consumption)
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             return None
-
-        return items[0].get("conversationId")
+        return partition_info[2]  # conversation_id is the third element
 
     def get_messages(self, run_id: str, conversation_id: str | None = None) -> list[ChatMessage]:
         """Get all messages for a conversation, reconstructed from responses and function calls.
@@ -1035,28 +1060,16 @@ class CosmosChatStore(ChatStore):
                 # Conversation not found, try to get user_id and tenant_id from response document
                 # But keep the provided conversation_id (don't overwrite it)
                 if run_id:
-                    query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id AND c.conversationId = @conversation_id"
-                    items = list(
-                        self.agent_store_container.query_items(
-                            query=query,
-                            parameters=[
-                                {"name": "@run_id", "value": run_id},
-                                {"name": "@conversation_id", "value": conversation_id},
-                            ],
-                            enable_cross_partition_query=True,
-                        )
-                    )
-                    if items:
-                        response_doc = items[0]
-                        # Verify the response belongs to the provided conversation_id
-                        if response_doc.get("conversationId") != conversation_id:
-                            return []
-                        # Get user_id and tenant_id from response
-                        user_id = response_doc["userId"]
-                        tenant_id = response_doc["tenantId"]
-                    else:
-                        # Response not found or doesn't belong to this conversation
+                    # Use projection to only fetch needed fields (reduces RU)
+                    partition_info = self._get_partition_info_from_run_id(run_id)
+                    if not partition_info:
                         return []
+                    response_tenant_id, response_user_id, response_conversation_id = partition_info
+                    # Verify the response belongs to the provided conversation_id
+                    if response_conversation_id != conversation_id:
+                        return []
+                    user_id = response_user_id
+                    tenant_id = response_tenant_id
                 else:
                     # No run_id provided, can't get user_id/tenant_id, return empty
                     return []
@@ -1064,20 +1077,11 @@ class CosmosChatStore(ChatStore):
             # No conversation_id provided, must use run_id
             if not run_id:
                 return []
-            query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-            items = list(
-                self.agent_store_container.query_items(
-                    query=query,
-                    parameters=[{"name": "@run_id", "value": run_id}],
-                    enable_cross_partition_query=True,
-                )
-            )
-            if not items:
+            # Use projection to only fetch needed fields (reduces RU)
+            partition_info = self._get_partition_info_from_run_id(run_id)
+            if not partition_info:
                 return []
-            response_doc = items[0]
-            conversation_id = response_doc["conversationId"]
-            user_id = response_doc["userId"]
-            tenant_id = response_doc["tenantId"]
+            tenant_id, user_id, conversation_id = partition_info
 
         # Get all responses for this conversation (ordered by creation time)
         responses = self.get_responses(conversation_id, user_id=user_id, tenant_id=tenant_id)
@@ -1157,29 +1161,34 @@ class CosmosChatStore(ChatStore):
 
         return result
 
-    def add_pending_tool_call(self, run_id: str, tool_call: ToolCall) -> None:
+    def add_pending_tool_call(self, run_id: str, tool_call: ToolCall, conversation_id: str | None = None) -> str:
         """Add a pending tool call.
 
         Creates a function_call document with status="pending" and optionally a toolApproval document for workflow metadata.
+        
+        Args:
+            run_id: Response ID
+            tool_call: Tool call to add
+            conversation_id: Optional conversation ID to avoid cross-partition queries
+            
+        Returns:
+            Partition key for the function call document
         """
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
-            raise ValueError(f"Response {run_id} not found")
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+        
+        # Use default values and get from response if needed
+        user_id = "default"
+        tenant_id = self.default_tenant_id
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
 
         # Create function_call document with status="pending"
         # First check if function_call already exists (from add_function_call)
@@ -1262,30 +1271,29 @@ class CosmosChatStore(ChatStore):
                 logger.warning("Failed to create toolApproval document: %s", e)
 
         logger.info("Added pending tool call %s for response %s", tool_call.id, run_id)
+        return pk
 
-    def approve_tool_call(self, run_id: str, tool_call_id: str, approved: bool) -> None:
+    def approve_tool_call(self, run_id: str, tool_call_id: str, approved: bool, partition_key: str | None = None) -> None:
         """Approve or reject a tool call.
 
         Updates the function_call document status and optionally the toolApproval document.
+        
+        Args:
+            run_id: Response ID
+            tool_call_id: Tool call ID
+            approved: Whether the tool call is approved
+            partition_key: Optional partition key for the function call document
         """
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
-            raise ValueError(f"Response {run_id} not found")
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
-        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        # Use provided partition key or get from response
+        if partition_key:
+            pk = partition_key
+        else:
+            # Get response to find partition info - use projection to reduce RU
+            partition_info = self._get_partition_info_from_run_id(run_id)
+            if not partition_info:
+                raise ValueError(f"Response {run_id} not found")
+            tenant_id, user_id, conversation_id = partition_info
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
 
         # Update function_call document status
         function_call_id = f"fc_{tool_call_id}"
@@ -1336,29 +1344,34 @@ class CosmosChatStore(ChatStore):
             "approved" if approved else "rejected",
         )
 
-    def get_tool_call_approval(self, run_id: str, tool_call_id: str) -> bool | None:
+    def get_tool_call_approval(self, run_id: str, tool_call_id: str, conversation_id: str | None = None) -> bool | None:
         """Get tool call approval status.
 
         Checks the function_call document status first, falls back to toolApproval document.
+        
+        Args:
+            run_id: Response ID
+            tool_call_id: Tool call ID
+            conversation_id: Optional conversation ID to avoid cross-partition queries
+            
+        Returns:
+            Approval status (True/False) or None if pending
         """
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
-            return None
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+        
+        # Use default values and get from response if needed
+        user_id = "default"
+        tenant_id = self.default_tenant_id
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            return None
 
         # Check function_call document first
         function_call_id = f"fc_{tool_call_id}"
@@ -1390,51 +1403,51 @@ class CosmosChatStore(ChatStore):
 
     def get_pending_tool_call(self, run_id: str, tool_call_id: str) -> ToolCall | None:
         """Get a pending tool call."""
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Get response to find partition info - use projection to reduce RU
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             return None
-
-        run_doc = items[0]
-        conversation_id = run_doc["conversationId"]
-        user_id = run_doc["userId"]
-        tenant_id = run_doc["tenantId"]
+        tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        
+        # Find function call document
+        function_call_id = f"fc_{tool_call_id}"
+        try:
+            function_call_doc = self.agent_store_container.read_item(item=function_call_id, partition_key=pk)
+            if function_call_doc.get("type") == "function_call" and function_call_doc.get("status") == "pending":
+                return ToolCall(
+                    id=function_call_doc.get("call_id", tool_call_id),
+                    name=function_call_doc.get("name", ""),
+                    arguments_json=function_call_doc.get("arguments", "{}"),
+                )
+        except CosmosResourceNotFoundError:
+            pass
+        return None
 
-    def request_parameters(self, run_id: str, tool_call_id: str, missing_parameters: list[str]) -> None:
+    def request_parameters(self, run_id: str, tool_call_id: str, missing_parameters: list[str], conversation_id: str | None = None) -> None:
         """Request missing parameters for a tool call.
 
         Args:
             run_id: Response ID
             tool_call_id: Tool call ID
             missing_parameters: List of missing parameter names
+            conversation_id: Optional conversation ID to avoid cross-partition queries
         """
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
-            raise ValueError(f"Response {run_id} not found")
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+        
+        # Use default values and get from response if needed
+        user_id = "default"
+        tenant_id = self.default_tenant_id
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            user_id = response_doc.get("userId", user_id)
+            tenant_id = response_doc.get("tenantId", tenant_id)
+            pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        except CosmosResourceNotFoundError:
+            raise ValueError(f"Response {run_id} not found in conversation {conversation_id}")
 
         # Create or update parameter request document
         param_request_id = f"param_req_{run_id}_{tool_call_id}"
@@ -1488,23 +1501,11 @@ class CosmosChatStore(ChatStore):
         Returns:
             List of missing parameter names, or None if no pending request
         """
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Get response to find partition info - use projection to reduce RU
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             return None
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
 
         param_request_id = f"param_req_{run_id}_{tool_call_id}"
@@ -1531,23 +1532,11 @@ class CosmosChatStore(ChatStore):
             tool_call_id: Tool call ID
             parameters: Dictionary of parameter name -> value
         """
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Get response to find partition info - use projection to reduce RU
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             raise ValueError(f"Response {run_id} not found")
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
 
         param_request_id = f"param_req_{run_id}_{tool_call_id}"
@@ -1606,23 +1595,11 @@ class CosmosChatStore(ChatStore):
         Returns:
             Dictionary of provided parameters, or None if not found
         """
-        # Get response to find partition info
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Get response to find partition info - use projection to reduce RU
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             return None
-
-        response_doc = items[0]
-        conversation_id = response_doc["conversationId"]
-        user_id = response_doc["userId"]
-        tenant_id = response_doc["tenantId"]
+        tenant_id, user_id, conversation_id = partition_info
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
 
         param_request_id = f"param_req_{run_id}_{tool_call_id}"
@@ -1639,79 +1616,67 @@ class CosmosChatStore(ChatStore):
 
     def cancel_run(self, run_id: str) -> None:
         """Cancel a response (backward compatibility: still called cancel_run)."""
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Get partition info using projection to reduce RU
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             raise ValueError(f"Run {run_id} not found")
-
-        run_doc = items[0]
+        tenant_id, user_id, conversation_id = partition_info
+        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        
+        # Read full document using partition key (more efficient)
+        run_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
         run_doc["status"] = "cancelled"
         run_doc["completedAt"] = datetime.now(UTC).isoformat()
-        pk = self._build_partition_key(run_doc["tenantId"], run_doc["userId"], run_doc["conversationId"])
+        run_doc["pk"] = pk
         self.agent_store_container.upsert_item(run_doc)
         logger.info("Cancelled run %s", run_id)
 
-    def is_cancelled(self, run_id: str) -> bool:
+    def is_cancelled(self, run_id: str, conversation_id: str | None = None) -> bool:
         """Check if a response is cancelled."""
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Require conversation_id - should be provided by chat_service
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+        
+        # Use partition key for efficient query
+        user_id = "default"
+        tenant_id = self.default_tenant_id
+        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        try:
+            response_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
+            return response_doc.get("status") == "cancelled"
+        except CosmosResourceNotFoundError:
             return False
-
-        return items[0].get("status") == "cancelled"
 
     def complete_run(self, run_id: str) -> None:
         """Mark a response as completed (backward compatibility: still called complete_run)."""
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Get partition info using projection to reduce RU
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             raise ValueError(f"Run {run_id} not found")
-
-        run_doc = items[0]
+        tenant_id, user_id, conversation_id = partition_info
+        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        
+        # Read full document using partition key (more efficient)
+        run_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
         run_doc["status"] = "completed"
         run_doc["completedAt"] = datetime.now(UTC).isoformat()
-        pk = self._build_partition_key(run_doc["tenantId"], run_doc["userId"], run_doc["conversationId"])
+        run_doc["pk"] = pk
         self.agent_store_container.upsert_item(run_doc)
 
     def error_run(self, run_id: str) -> None:
         """Mark a response as error (backward compatibility: still called error_run)."""
-        query = "SELECT * FROM c WHERE (c.type = 'response' OR c.type = 'run') AND c.id = @run_id"
-        items = list(
-            self.agent_store_container.query_items(
-                query=query,
-                parameters=[{"name": "@run_id", "value": run_id}],
-                enable_cross_partition_query=True,
-            )
-        )
-
-        if not items:
+        # Get partition info using projection to reduce RU
+        partition_info = self._get_partition_info_from_run_id(run_id)
+        if not partition_info:
             raise ValueError(f"Run {run_id} not found")
-
-        run_doc = items[0]
+        tenant_id, user_id, conversation_id = partition_info
+        pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        
+        # Read full document using partition key (more efficient)
+        run_doc = self.agent_store_container.read_item(item=run_id, partition_key=pk)
         run_doc["status"] = "error"
         run_doc["completedAt"] = datetime.now(UTC).isoformat()
-        pk = self._build_partition_key(run_doc["tenantId"], run_doc["userId"], run_doc["conversationId"])
+        run_doc["pk"] = pk
         self.agent_store_container.upsert_item(run_doc)
 
     def store_file(
@@ -1790,7 +1755,8 @@ class CosmosChatStore(ChatStore):
         tenant_id = tenant_id or self.default_tenant_id
 
         # Query for artifact document (may need cross-partition query)
-        query = "SELECT * FROM c WHERE c.type = 'artifact' AND c.id = @file_id"
+        # Use projection to only fetch needed fields (reduces RU)
+        query = "SELECT c.id, c.name, c.mimeType, c.sizeBytes FROM c WHERE c.type = 'artifact' AND c.id = @file_id"
         items = list(
             self.agent_store_container.query_items(
                 query=query,
@@ -2030,9 +1996,9 @@ class CosmosChatStore(ChatStore):
         # If conversation_id provided, use it to get partition key
         if conversation_id:
             # Need to find the function call to get tenant_id and user_id
-            # Query by function_call_id and conversation_id
+            # Query by function_call_id and conversation_id - use projection to reduce RU
             query = (
-                "SELECT * FROM c WHERE c.type = 'function_call' AND c.id = @function_call_id "
+                "SELECT c.tenantId, c.userId, c.conversationId FROM c WHERE c.type = 'function_call' AND c.id = @function_call_id "
                 "AND c.conversationId = @conversation_id"
             )
             items = list(
@@ -2047,7 +2013,8 @@ class CosmosChatStore(ChatStore):
             )
         else:
             # Query without conversation_id (requires cross-partition query)
-            query = "SELECT * FROM c WHERE c.type = 'function_call' AND c.id = @function_call_id"
+            # Use projection to only fetch needed fields for partition key (reduces RU)
+            query = "SELECT c.tenantId, c.userId, c.conversationId FROM c WHERE c.type = 'function_call' AND c.id = @function_call_id"
             items = list(
                 self.agent_store_container.query_items(
                     query=query,
@@ -2059,11 +2026,14 @@ class CosmosChatStore(ChatStore):
         if not items:
             raise ValueError(f"Function call {function_call_id} not found")
 
-        function_call_doc = items[0]
-        conversation_id = conversation_id or function_call_doc["conversationId"]
-        user_id = function_call_doc["userId"]
-        tenant_id = function_call_doc["tenantId"]
+        partition_info = items[0]
+        conversation_id = conversation_id or partition_info["conversationId"]
+        user_id = partition_info["userId"]
+        tenant_id = partition_info["tenantId"]
         pk = self._build_partition_key(tenant_id, user_id, conversation_id)
+        
+        # Read full document using partition key (more efficient)
+        function_call_doc = self.agent_store_container.read_item(item=function_call_id, partition_key=pk)
 
         # Update function call document
         now = datetime.now(UTC).isoformat()

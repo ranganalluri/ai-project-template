@@ -14,7 +14,7 @@ class ToolRegistry:
     def __init__(self) -> None:
         """Initialize tool registry."""
         self.tools = {
-            "search_docs": self._search_docs,
+            "search_users": self._search_users,
             "get_time": self._get_time,
         }
 
@@ -28,18 +28,18 @@ class ToolRegistry:
         """
         return [
             {
-                "name": "search_docs",
+                "name": "search_users",
                 "type": "function",
-                "description": "Search documentation for a query",
+                "description": "Search for users by name. REQUIRES: 'name' parameter (string) containing the user's name to search for. Extract the name from the user's message.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {
+                        "name": {
                             "type": "string",
-                            "description": "Search query",
+                            "description": "REQUIRED: The name of the user to search for. Extract this from the user's message - look for any person's name (first name, last name, or full name) mentioned by the user.",
                         },
                     },
-                    "required": ["query"],
+                    "required": ["name"],
                 },
             },
             {
@@ -139,21 +139,21 @@ class ToolRegistry:
         logger.info(f"Executed tool {tool_name} with result: {result}")
         return result
 
-    async def _search_docs(self, query: str) -> dict[str, Any]:
-        """Search documentation (dummy implementation).
+    async def _search_users(self, name: str) -> dict[str, Any]:
+        """Search Users (dummy implementation).
 
         Args:
-            query: Search query
+            name: Name of the user to search for
 
         Returns:
             Search results
         """
         # Dummy implementation
         return {
-            "query": query,
+            "query": name,
             "results": [
-                {"title": "Sample Doc 1", "snippet": f"Content related to {query}"},
-                {"title": "Sample Doc 2", "snippet": f"More content about {query}"},
+                {"title": "Sample User 1", "snippet": f"Content related to {name}"},
+                {"title": "Sample User 2", "snippet": f"More content about {name}"},
             ],
         }
 

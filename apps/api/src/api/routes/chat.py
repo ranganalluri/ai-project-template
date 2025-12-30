@@ -177,7 +177,7 @@ async def approve_tool_call(
     Returns:
         Success message
     """
-    chat_store.approve_tool_call(run_id, tool_call_id, request.approved)
+    chat_store.approve_tool_call(run_id, tool_call_id, request.approved, partition_key=request.partition_key)
     logger.info(
         "Tool call %s in run %s %s",
         tool_call_id,
