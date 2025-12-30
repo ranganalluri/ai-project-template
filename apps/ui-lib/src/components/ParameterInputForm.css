@@ -1,0 +1,162 @@
+.parameter-input-form {
+  background: var(--bg-secondary, #f5f5f5);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 16px 0;
+  max-width: 600px;
+}
+
+.parameter-input-form-header {
+  margin-bottom: 20px;
+}
+
+.parameter-input-form-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary, #333);
+}
+
+.parameter-input-form-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary, #666);
+  margin: 0;
+}
+
+.parameter-input-form-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.parameter-input-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parameter-input-form-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #333);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.parameter-input-form-type {
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+  font-weight: 400;
+}
+
+.parameter-input-form-required {
+  color: var(--error-color, #d32f2f);
+  font-weight: 600;
+}
+
+.parameter-input-form-explanation {
+  background: var(--info-bg, #e3f2fd);
+  border-left: 3px solid var(--info-color, #2196f3);
+  border-radius: 4px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  margin: 4px 0;
+}
+
+.parameter-input-form-explanation-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.parameter-input-form-explanation-text {
+  font-size: 13px;
+  color: var(--text-primary, #333);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.parameter-input-form-description {
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+  margin: 4px 0;
+  font-style: italic;
+}
+
+.parameter-input-form-field {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #333);
+  transition: border-color 0.2s;
+}
+
+.parameter-input-form-field:focus {
+  outline: none;
+  border-color: var(--primary-color, #2196f3);
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.parameter-input-form-field-error {
+  border-color: var(--error-color, #d32f2f);
+}
+
+.parameter-input-form-field-error:focus {
+  border-color: var(--error-color, #d32f2f);
+  box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.1);
+}
+
+.parameter-input-form-error {
+  font-size: 12px;
+  color: var(--error-color, #d32f2f);
+  margin-top: -4px;
+}
+
+.parameter-input-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color, #e0e0e0);
+}
+
+.parameter-input-form-button-submit,
+.parameter-input-form-button-cancel {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.parameter-input-form-button-submit {
+  background: var(--primary-color, #2196f3);
+  color: white;
+}
+
+.parameter-input-form-button-submit:hover {
+  background: var(--primary-color-dark, #1976d2);
+}
+
+.parameter-input-form-button-submit:active {
+  transform: scale(0.98);
+}
+
+.parameter-input-form-button-cancel {
+  background: var(--bg-secondary, #f5f5f5);
+  color: var(--text-primary, #333);
+  border: 1px solid var(--border-color, #e0e0e0);
+}
+
+.parameter-input-form-button-cancel:hover {
+  background: var(--bg-tertiary, #e0e0e0);
+}
+

@@ -18,3 +18,4 @@ Write-Host "Running pre-deploy hook for service: $ServiceName" -ForegroundColor 
 # }
 
 Write-Host "Pre-deploy hook completed" -ForegroundColor Green
+

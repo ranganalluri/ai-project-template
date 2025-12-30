@@ -34,6 +34,26 @@ export interface SSEMessageDone {
 export interface SSEToolCallRequested {
   runId: string;
   toolCall: ToolCall;
+  partitionKey?: string;
+  missingParameters?: Array<{
+    name: string;
+    type: string;
+    description: string;
+    llmExplanation?: string;
+  }>;
+  requiresParameters?: boolean;
+}
+
+export interface SSEParameterRequest {
+  runId: string;
+  toolCallId: string;
+  toolName: string;
+  missingParameters: Array<{
+    name: string;
+    type: string;
+    description: string;
+    llmExplanation?: string;
+  }>;
 }
 
 export interface SSEToolCallResult {
@@ -57,6 +77,7 @@ export type SSEEvent =
   | { type: 'message_done'; data: SSEMessageDone }
   | { type: 'tool_call_requested'; data: SSEToolCallRequested }
   | { type: 'tool_call_result'; data: SSEToolCallResult }
+  | { type: 'parameter_request'; data: SSEParameterRequest }
   | { type: 'error'; data: SSEError }
   | { type: 'done'; data: SSEDone };
 

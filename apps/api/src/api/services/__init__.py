@@ -3,6 +3,10 @@
 import logging
 
 from api.config import Settings, get_settings
+<<<<<<< HEAD
+from api.services.tool_registry import ToolRegistry
+=======
+>>>>>>> origin/main
 from common.services.chat_store import CosmosChatStore
 from common.services.file_storage import BlobFileStorage
 from common.services.user_service import CosmosUserService
@@ -93,3 +97,22 @@ def get_file_storage(settings: Settings = Depends(get_settings)) -> BlobFileStor
         logger.info("Initialized BlobFileStorage")
 
     return _services_cache["file_storage"]
+<<<<<<< HEAD
+
+
+def get_tool_registry(settings: Settings = Depends(get_settings)) -> ToolRegistry:
+    """Get ToolRegistry instance with UserService configured.
+
+    Args:
+        settings: Application settings
+
+    Returns:
+        ToolRegistry instance with UserService
+    """
+    if "tool_registry" not in _services_cache:
+        user_service = get_user_service(settings)
+        _services_cache["tool_registry"] = ToolRegistry(user_service=user_service)
+        logger.info("Initialized ToolRegistry with UserService")
+    return _services_cache["tool_registry"]
+=======
+>>>>>>> origin/main

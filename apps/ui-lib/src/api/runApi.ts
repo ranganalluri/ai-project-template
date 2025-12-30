@@ -22,13 +22,27 @@ export async function approveToolCall(
   runId: string,
   toolCallId: string,
   approved: boolean,
+<<<<<<< HEAD
+  partitionKey?: string,
 ): Promise<void> {
+  const requestBody: { approved: boolean; partitionKey?: string } = { approved };
+  if (partitionKey) {
+    requestBody.partitionKey = partitionKey;
+  }
+  
+=======
+): Promise<void> {
+>>>>>>> origin/main
   const response = await fetch(`${getApiUrl()}/v1/runs/${runId}/toolcalls/${toolCallId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+<<<<<<< HEAD
+    body: JSON.stringify(requestBody),
+=======
     body: JSON.stringify({ approved }),
+>>>>>>> origin/main
   });
 
   if (!response.ok) {
@@ -36,3 +50,30 @@ export async function approveToolCall(
   }
 }
 
+<<<<<<< HEAD
+/**
+ * Provide parameters for a tool call.
+ */
+export async function provideParameters(
+  runId: string,
+  toolCallId: string,
+  parameters: Record<string, unknown>,
+): Promise<void> {
+  const response = await fetch(
+    `${getApiUrl()}/v1/runs/${runId}/toolcalls/${toolCallId}/parameters`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ parameters }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to provide parameters: ${response.status}`);
+  }
+}
+
+=======
+>>>>>>> origin/main

@@ -14,12 +14,23 @@ import {
   Composer,
   MessageList,
   ToolApprovalModal,
+<<<<<<< HEAD
+  ParameterInputForm,
+=======
+>>>>>>> origin/main
   ToastContainer,
   type ChatMessage,
   type FileUpload,
   type SSEEvent,
+<<<<<<< HEAD
+  type SSEParameterRequest,
   type ToolCall,
   approveToolCall,
+  provideParameters,
+=======
+  type ToolCall,
+  approveToolCall,
+>>>>>>> origin/main
   setApiUrl,
   startChatSSE,
   stopRun,
@@ -32,7 +43,12 @@ export const Chat: React.FC = () => {
   const [attachedFiles, setAttachedFiles] = useState<FileUpload[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+<<<<<<< HEAD
+  const [pendingToolCall, setPendingToolCall] = useState<{ runId: string; toolCall: ToolCall; partitionKey?: string } | null>(null);
+  const [pendingParameterRequest, setPendingParameterRequest] = useState<SSEParameterRequest | null>(null);
+=======
   const [pendingToolCall, setPendingToolCall] = useState<{ runId: string; toolCall: ToolCall } | null>(null);
+>>>>>>> origin/main
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
   const [conversationId, setConversationId] = useState<string | null>(() => {
     // Initialize from sessionStorage on mount
@@ -121,12 +137,34 @@ export const Chat: React.FC = () => {
                 setConversationId(event.data.conversationId);
                 sessionStorage.setItem('conversationId', event.data.conversationId);
               }
+<<<<<<< HEAD
+            } else if (event.type === 'parameter_request') {
+              runId = event.data.runId;
+              setCurrentRunId(runId);
+              setPendingParameterRequest(event.data);
+              // Clear any pending tool call - we need parameters first
+              setPendingToolCall(null);
+              // Show parameter form inline - don't show approval modal yet
+            } else if (event.type === 'tool_call_requested') {
+              runId = event.data.runId;
+              setCurrentRunId(runId);
+              // Clear parameter request if it exists (parameters have been provided)
+              if (pendingParameterRequest && pendingParameterRequest.toolCallId === event.data.toolCall.id) {
+                setPendingParameterRequest(null);
+              }
+              // Show approval modal
+              setPendingToolCall({
+                runId: event.data.runId,
+                toolCall: event.data.toolCall,
+                partitionKey: event.data.partitionKey,
+=======
             } else if (event.type === 'tool_call_requested') {
               runId = event.data.runId;
               setCurrentRunId(runId);
               setPendingToolCall({
                 runId: event.data.runId,
                 toolCall: event.data.toolCall,
+>>>>>>> origin/main
               });
               // Pause streaming UI - modal will handle approval
             } else if (event.type === 'tool_call_result') {
@@ -203,7 +241,11 @@ export const Chat: React.FC = () => {
     }
 
     try {
+<<<<<<< HEAD
+      await approveToolCall(pendingToolCall.runId, pendingToolCall.toolCall.id, true, pendingToolCall.partitionKey);
+=======
       await approveToolCall(pendingToolCall.runId, pendingToolCall.toolCall.id, true);
+>>>>>>> origin/main
       setPendingToolCall(null);
       addToast('Tool call approved', 'success');
       // Streaming will continue automatically
@@ -218,8 +260,14 @@ export const Chat: React.FC = () => {
     }
 
     try {
+<<<<<<< HEAD
+      await approveToolCall(pendingToolCall.runId, pendingToolCall.toolCall.id, false, pendingToolCall.partitionKey);
+      setPendingToolCall(null);
+      setPendingParameterRequest(null);
+=======
       await approveToolCall(pendingToolCall.runId, pendingToolCall.toolCall.id, false);
       setPendingToolCall(null);
+>>>>>>> origin/main
       addToast('Tool call rejected', 'info');
       setIsStreaming(false);
       setCurrentRunId(null);
@@ -228,6 +276,40 @@ export const Chat: React.FC = () => {
     }
   }, [pendingToolCall, addToast]);
 
+<<<<<<< HEAD
+  const handleParametersSubmit = useCallback(
+    async (parameters: Record<string, unknown>) => {
+      if (!pendingParameterRequest) {
+        return;
+      }
+
+      try {
+        await provideParameters(
+          pendingParameterRequest.runId,
+          pendingParameterRequest.toolCallId,
+          parameters,
+        );
+        addToast('Parameters submitted', 'success');
+        // Keep pendingParameterRequest until tool_call_requested event clears it
+        // The backend will emit tool_call_requested event after parameters are provided
+      } catch (error) {
+        addToast(
+          `Failed to submit parameters: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          'error',
+        );
+      }
+    },
+    [pendingParameterRequest, addToast],
+  );
+
+  const handleParametersCancel = useCallback(() => {
+    setPendingParameterRequest(null);
+    setIsStreaming(false);
+    setCurrentRunId(null);
+  }, []);
+
+=======
+>>>>>>> origin/main
   // Load API URL from localStorage or env
   useEffect(() => {
     const savedApiUrl = localStorage.getItem('apiUrl');
@@ -245,7 +327,17 @@ export const Chat: React.FC = () => {
   return (
     <div className="chat-page">
       <ChatShell title="Chat">
+<<<<<<< HEAD
+        <MessageList
+          messages={messages}
+          files={attachedFiles}
+          pendingParameterRequest={pendingParameterRequest}
+          onParametersSubmit={handleParametersSubmit}
+          onParametersCancel={handleParametersCancel}
+        />
+=======
         <MessageList messages={messages} files={attachedFiles} />
+>>>>>>> origin/main
         <Composer
           onSend={handleSend}
           onStop={handleStop}
