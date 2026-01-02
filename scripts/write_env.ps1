@@ -20,8 +20,9 @@ $aiFoundryProjectName = azd env get-value AI_FOUNDRY_PROJECT_NAME 2>$null
 $aiFoundryGpt4Deployment = azd env get-value AI_FOUNDRY_GPT4_DEPLOYMENT 2>$null
 $foundryConnectionString = azd env get-value FOUNDRY_CONNECTION_STRING 2>$null
 $managedIdentityClientId = azd env get-value MANAGED_IDENTITY_CLIENT_ID 2>$null
-$azureStorageAccountName = azd env get-value AZURE_STORAGE_ACCOUNT_NAME 2>$null
-$uiUrl = 'https://localhost:8081/'
+$azureStorageAccountName = 'devstoreaccount1'
+$azureStorageAccountKey = 'Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=='
+$uiUrl = 'https://localhost:5173/'
 
 # Format Foundry endpoint if both endpoint and project name are available
 $foundryEndpoint = $null
@@ -56,6 +57,10 @@ if ($aiFoundryGpt4Deployment) {
 
 if ($azureStorageAccountName) {
     Add-Content -Path $envFilePath -Value "AZURE_STORAGE_ACCOUNT_NAME=$azureStorageAccountName"
+}
+
+if ($azureStorageAccountKey) {
+    Add-Content -Path $envFilePath -Value "AZURE_STORAGE_ACCOUNT_KEY=$azureStorageAccountKey"
 }
 
 if ($uiUrl) {

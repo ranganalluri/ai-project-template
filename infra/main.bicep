@@ -122,6 +122,24 @@ module cosmosDb 'modules/cosmos-db.bicep' = {
   }
 }
 
+// Azure Storage Account
+// Storage account names must be lowercase, 3-24 chars, alphanumeric only
+var storageAccountName = toLower('${replace(resourceNamePrefix, '-', '')}st${resourceIndexSuffix}')
+
+module storageAccount 'modules/storage-account.bicep' = {
+  name: 'storageAccountDeployment'
+  params: {
+    name: storageAccountName
+    location: location
+    environment: environment
+    containerName: 'files'
+    tags: {
+      region: regionCode
+      createdBy: 'bicep'
+    }
+  }
+}
+
 // Azure Key Vault
 module keyVault 'modules/key-vault.bicep' = if (keyVaultEnabled) {
   name: 'keyVaultDeployment'
@@ -131,6 +149,7 @@ module keyVault 'modules/key-vault.bicep' = if (keyVaultEnabled) {
     managedIdentityPrincipalId: managedIdentity.properties.principalId
     environment: environment
     cosmosDbKey: cosmosDb.outputs.key
+    storageAccountKey: storageAccount.outputs.primaryKey
     tags: {
       region: regionCode
       createdBy: 'bicep'
@@ -167,9 +186,16 @@ output AZURE_COSMOSDB_ENDPOINT string = cosmosDb.outputs.endpoint
 output AZURE_COSMOSDB_KEY string = cosmosDb.outputs.key
 output AZURE_COSMOSDB_DATABASE_NAME string = cosmosDb.outputs.databaseName
 
+// Storage Account outputs
+output AZURE_STORAGE_ACCOUNT_NAME string = storageAccount.outputs.accountName
+output AZURE_STORAGE_ACCOUNT_KEY string = storageAccount.outputs.primaryKey
+output AZURE_STORAGE_CONTAINER_NAME string = storageAccount.outputs.containerName
+output AZURE_STORAGE_ENDPOINT string = storageAccount.outputs.endpoint
+
 // Key Vault outputs
-output KEY_VAULT_NAME string = (keyVaultEnabled) ? keyVault.outputs.name : ''
-output KEY_VAULT_URI string = (keyVaultEnabled) ? keyVault.outputs.uri : ''
-output FOUNDRY_CONNECTION_STRING_SECRET_NAME string = (keyVaultEnabled) ? keyVault.outputs.secretName : ''
-output FOUNDRY_CONNECTION_STRING string = (keyVaultEnabled) ? 'Update Key Vault secret "${keyVault.outputs.secretName}" after creating AI Project' : ''
-output COSMOS_DB_KEY_SECRET_NAME string = (keyVaultEnabled) ? keyVault.outputs.cosmosDbKeySecretName : ''
+output KEY_VAULT_NAME string = (keyVaultEnabled) ? keyVault!.outputs.name : ''
+output KEY_VAULT_URI string = (keyVaultEnabled) ? keyVault!.outputs.uri : ''
+output FOUNDRY_CONNECTION_STRING_SECRET_NAME string = (keyVaultEnabled) ? keyVault!.outputs.secretName : ''
+output FOUNDRY_CONNECTION_STRING string = (keyVaultEnabled) ? 'Update Key Vault secret "${keyVault!.outputs.secretName}" after creating AI Project' : ''
+output COSMOS_DB_KEY_SECRET_NAME string = (keyVaultEnabled) ? keyVault!.outputs.cosmosDbKeySecretName : ''
+output STORAGE_ACCOUNT_KEY_SECRET_NAME string = (keyVaultEnabled) ? keyVault!.outputs.storageAccountKeySecretName : ''

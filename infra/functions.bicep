@@ -15,6 +15,7 @@ param identityId string
 param resourceNamePrefix string
 param resourceIndexSuffix string
 param keyVaultUri string = ''
+param storageAccountName string = ''
 
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
@@ -59,6 +60,11 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
           keyVaultUrl: '${keyVault.properties.vaultUri}secrets/CosmosDbKey'
           identity: identityId
         }
+        {
+          name: 'storage-account-key'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/StorageAccountKey'
+          identity: identityId
+        }
       ] : []
       activeRevisionsMode: 'Single'
     }
@@ -67,12 +73,24 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
         {
           image: imageName
           name: 'main'
-          env: (!empty(keyVaultUri)) ? [
-            {
-              name: 'AZURE_COSMOSDB_KEY'
-              secretRef: 'cosmos-db-key'
-            }
-          ] : []
+          env: concat(
+            (!empty(keyVaultUri)) ? [
+              {
+                name: 'AZURE_COSMOSDB_KEY'
+                secretRef: 'cosmos-db-key'
+              }
+              {
+                name: 'AZURE_STORAGE_ACCOUNT_KEY'
+                secretRef: 'storage-account-key'
+              }
+            ] : [],
+            (!empty(storageAccountName)) ? [
+              {
+                name: 'AZURE_STORAGE_ACCOUNT_NAME'
+                value: storageAccountName
+              }
+            ] : []
+          )
           resources: {
             cpu: json('0.5')
             memory: '1.0Gi'

@@ -9,9 +9,10 @@ export interface ChatMessage {
 
 export interface FileUpload {
   fileId: string;
-  filename: string;
+  fileName: string;
   contentType: string;
   size: number;
+  dataUrl?: string; // Optional data URL for image preview
 }
 
 export interface ToolCall {

@@ -37,9 +37,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, files = [
         <div className="message-bubble-content">{message.content}</div>
         {messageFiles.length > 0 && (
           <div className="message-bubble-files">
-            {messageFiles.map((file) => (
-              <div key={file.fileId} className="message-bubble-file-chip">
-                📎 {file.filename}
+            {messageFiles.map((file, index) => (
+              <div key={file.fileId || `file-${index}`} className="message-bubble-file-chip" title={file.fileName}>
+                📎 {file.fileName || 'Unknown file'}
               </div>
             ))}
           </div>

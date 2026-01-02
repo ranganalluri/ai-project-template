@@ -24,13 +24,35 @@ export interface StartChatSSEOptions {
 export async function startChatSSE(options: StartChatSSEOptions): Promise<() => void> {
   const { threadId, messages, files, onEvent, onError, signal } = options;
 
-  const fileIds = files?.map((f) => f.fileId) || [];
+  // Collect file IDs from files array and messages, filter out empty/null values
+  const fileIdsFromFiles = files?.map((f) => f.fileId).filter((id) => id != null && id !== '') || [];
+  const fileIdsFromMessages: string[] = [];
+  for (const msg of messages) {
+    if (msg.fileIds) {
+      for (const id of msg.fileIds) {
+        if (id != null && id !== '') {
+          fileIdsFromMessages.push(id);
+        }
+      }
+    }
+  }
+  
+  // Combine and deduplicate file IDs - only include if not empty
+  const allFileIds = [...new Set([...fileIdsFromFiles, ...fileIdsFromMessages])];
+
+  // Debug logging
+  console.log('File IDs from files array:', fileIdsFromFiles);
+  console.log('File IDs from messages:', fileIdsFromMessages);
+  console.log('All file IDs:', allFileIds);
 
   const requestBody: ChatRequest = {
     threadId,
     messages,
-    fileIds,
+    // Only include fileIds if the array is not empty
+    ...(allFileIds.length > 0 && { fileIds: allFileIds }),
   };
+
+  console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
   const abortController = new AbortController();
   

@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"pnpm  ui\" \"pnpm api\"",
-    "ui": "pnpm --filter=@agentic/ui dev",
+    "ui": "pnpm build:ui && pnpm --filter=@agentic/ui dev",
     "api": "uv run python -m uvicorn api.main:app --reload --host localhost --port 8000",
     "build:ui": "pnpm build:ui-lib && pnpm --filter=@agentic/ui build",
     "build:ui-lib": "pnpm --filter=@agentic/ui-lib build",

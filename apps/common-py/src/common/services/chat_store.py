@@ -727,6 +727,9 @@ class CosmosChatStore(ChatStore):
             "role": message.role,
             "content": message.content,
         }
+        # Add file_ids if present
+        if message.file_ids:
+            input_message["file_ids"] = message.file_ids
 
         # Append message to response.input array
         response_doc["input"].append(input_message)
@@ -1291,12 +1294,12 @@ class CosmosChatStore(ChatStore):
             # Extract input messages from response.input
             input_messages = response.get("input", [])
             for input_msg in input_messages:
-                # Input messages are already in the correct format: {"role": "...", "content": "..."}
+                # Input messages are already in the correct format: {"role": "...", "content": "...", "file_ids": [...]}
                 result.append(
                     ChatMessage(
                         role=input_msg.get("role", "user"),
                         content=input_msg.get("content", ""),
-                        file_ids=[],
+                        file_ids=input_msg.get("file_ids", []),  # Extract from stored message
                         content_items=None,
                     )
                 )
@@ -2062,7 +2065,7 @@ class CosmosChatStore(ChatStore):
                 ChatMessage(
                     role=msg_doc["role"],
                     content=content_text,
-                    file_ids=[],  # TODO: Extract from message if stored
+                    file_ids=msg_doc.get("file_ids", []),  # Extract from stored message
                 )
             )
 

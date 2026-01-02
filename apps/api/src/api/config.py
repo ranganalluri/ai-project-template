@@ -71,9 +71,10 @@ class Settings(BaseSettings):
     catalog_container: str = "catalog"
 
     # Azure Storage
-    azure_storage_account_name: str | None = "None"
-    azure_storage_account_key: str | None = None
+    azure_storage_account_name: str | None = "devstoreaccount1"
+    azure_storage_account_key: str | None = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
     azure_storage_container_name: str = "files"
+    azure_storage_blob_endpoint: str | None = None  # For Azurite: http://127.0.0.1:10000/devstoreaccount1
 
     model_config = SettingsConfigDict(
         env_file=_get_env_file_path(),

@@ -19,6 +19,8 @@ export async function uploadFile(file: File): Promise<FileUpload> {
     throw new Error(`Failed to upload file: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  // API now returns camelCase directly, so we can return it as-is
+  return data;
 }
 

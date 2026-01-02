@@ -9,17 +9,19 @@ from pydantic import BaseModel, ConfigDict, Field
 class FileUploadResponse(BaseModel):
     """Response model for file upload."""
 
-    file_id: str = Field(..., description="Unique file identifier")
-    filename: str = Field(..., description="Original filename")
-    content_type: str = Field(..., description="MIME type of the file")
+    file_id: str = Field(..., alias="fileId", description="Unique file identifier")
+    filename: str = Field(..., alias="fileName", description="Original filename")
+    content_type: str = Field(..., alias="contentType", description="MIME type of the file")
     size: int = Field(..., description="File size in bytes")
+
+    model_config = ConfigDict(populate_by_name=True)  # Allow both camelCase and snake_case
 
 
 class ChatMessage(BaseModel):
     """Chat message model."""
 
     role: str = Field(..., description="Message role: user, assistant, system, or tool")
-    content: str = Field(..., description="Message content (text content for backward compatibility)")
+    content: str = Field(default="", description="Message content (text content for backward compatibility)")
     file_ids: list[str] = Field(default_factory=list, description="Attached file IDs")
     content_items: list[dict[str, Any]] | None = Field(
         None, description="Full content array including function calls and outputs"
