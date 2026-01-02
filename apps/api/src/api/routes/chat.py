@@ -1,6 +1,8 @@
 """Chat routes for streaming conversations."""
 
 import logging
+import mimetypes
+import os
 import uuid
 
 from api.config import Settings, get_settings
@@ -35,6 +37,7 @@ def get_chat_service(
     foundry_client: FoundryClient = Depends(get_foundry_client),
     settings: Settings = Depends(get_settings),
     chat_store: ChatStore = Depends(get_chat_store),
+    file_storage: FileStorage = Depends(get_file_storage),
     tool_registry=Depends(get_tool_registry),
 ) -> ChatService:
     """Get chat service dependency.
@@ -43,12 +46,15 @@ def get_chat_service(
         foundry_client: Foundry client
         settings: Application settings
         chat_store: Chat store
+        file_storage: File storage service
         tool_registry: Tool registry with UserService configured
 
     Returns:
         ChatService instance
     """
-    return ChatService(foundry_client, settings, chat_store, tool_registry_instance=tool_registry)
+    return ChatService(
+        foundry_client, settings, chat_store, file_storage, tool_registry_instance=tool_registry
+    )
 
 
 @router.post("/files", response_model=FileUploadResponse)
@@ -68,17 +74,38 @@ async def upload_file(
         File upload response with file ID
     """
     try:
-        # Generate file ID
-        file_id = str(uuid.uuid4())
-
         # Read file content
         content = await file.read()
+
+        # Determine content type: use provided, guess from filename, or default
+        content_type = file.content_type
+        if not content_type and file.filename:
+            content_type, _ = mimetypes.guess_type(file.filename)
+        if not content_type:
+            content_type = "application/octet-stream"
+
+        # Generate file ID with extension preserved
+        base_file_id = str(uuid.uuid4())
+        if file.filename:
+            # Extract extension from original filename (os.path.splitext safely extracts just the extension)
+            _, ext = os.path.splitext(file.filename)
+            # Normalize extension: lowercase and limit length for safety
+            if ext:
+                ext = ext.lower().strip()
+                # Limit extension length to prevent abuse
+                if len(ext) > 20:
+                    ext = ext[:20]
+                file_id = f"{base_file_id}{ext}"
+            else:
+                file_id = base_file_id
+        else:
+            file_id = base_file_id
 
         # Store metadata
         file_data = FileUploadResponse(
             file_id=file_id,
             filename=file.filename or "unknown",
-            content_type=file.content_type or "application/octet-stream",
+            content_type=content_type,
             size=len(content),
         )
 
@@ -120,10 +147,23 @@ async def stream_chat(
         for msg in request.messages:
             chat_store.add_message(run_id, msg, conversation_id=conversation_id)
 
+        # Collect file IDs: use top-level file_ids if provided, otherwise collect from messages
+        file_ids = request.file_ids or []
+        logger.info("Received file_ids from request: %s", file_ids)
+        if not file_ids:
+            # Collect file IDs from all messages
+            for msg in request.messages:
+                if msg.file_ids:
+                    logger.info("Found file_ids in message: %s", msg.file_ids)
+                    file_ids.extend(msg.file_ids)
+            # Remove duplicates while preserving order
+            file_ids = list(dict.fromkeys(file_ids))
+        logger.info("Final file_ids to process: %s", file_ids)
+
         # Start streaming
         async def event_generator():
             async for event in chat_service.stream_chat(
-                run_id, request.messages, request.file_ids, conversation_id=conversation_id
+                run_id, request.messages, file_ids, conversation_id=conversation_id
             ):
                 yield event
 

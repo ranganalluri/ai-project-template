@@ -32,6 +32,7 @@ import './Chat.css';
 export const Chat: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [attachedFiles, setAttachedFiles] = useState<FileUpload[]>([]);
+  const [allFiles, setAllFiles] = useState<FileUpload[]>([]); // All uploaded files for message display
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [pendingToolCall, setPendingToolCall] = useState<{ runId: string; toolCall: ToolCall; partitionKey?: string } | null>(null);
@@ -61,13 +62,27 @@ export const Chat: React.FC = () => {
       }
 
       // Add user message to UI
+      // Filter out null/undefined fileIds
+      const validFileIds = files.map((f) => f.fileId).filter((id) => id != null && id !== '');
       const userMessage: ChatMessage = {
         role: 'user',
         content: message,
-        fileIds: files.map((f) => f.fileId),
+        fileIds: validFileIds.length > 0 ? validFileIds : undefined,
         id: Date.now().toString(),
       };
       setMessages((prev) => [...prev, userMessage]);
+      
+      // Add files to allFiles for message display
+      // Files already have dataUrl from attachedFiles, so preserve them
+      // This ensures files remain visible below messages after sending
+      setAllFiles((prev) => {
+        // Merge new files with existing, avoiding duplicates
+        const existingFileIds = new Set(prev.map((f) => f.fileId));
+        const newFiles = files.filter((f) => !existingFileIds.has(f.fileId));
+        // Files from attachedFiles already include dataUrl, so add them as-is
+        return [...prev, ...newFiles];
+      });
+      // Keep attached files in composer after sending
 
       // Start streaming
       setIsStreaming(true);
@@ -199,8 +214,25 @@ export const Chat: React.FC = () => {
   const handleFileSelect = useCallback(
     async (file: File) => {
       try {
+        // Create data URL for images to display immediately
+        let dataUrl: string | undefined;
+        if (file.type.startsWith('image/')) {
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
         const uploaded = await uploadFile(file);
-        setAttachedFiles((prev) => [...prev, uploaded]);
+        // Add data URL to uploaded file for display in composer
+        const fileWithPreview = { ...uploaded, dataUrl };
+        setAttachedFiles((prev) => [...prev, fileWithPreview]);
+        
+        // Don't create preview messages - images should only show in composer before sending
+        // Files will be added to allFiles when message is sent
+        
         addToast(`File ${file.name} uploaded`, 'success');
       } catch (error) {
         addToast(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
@@ -211,6 +243,17 @@ export const Chat: React.FC = () => {
 
   const handleRemoveFile = useCallback((fileId: string) => {
     setAttachedFiles((prev) => prev.filter((f) => f.fileId !== fileId));
+    // Check if file is in any sent message before removing from allFiles
+    setMessages((prev) => {
+      const hasFileInSentMessage = prev.some((m) => 
+        !m.id?.startsWith('preview-') && m.fileIds?.includes(fileId)
+      );
+      if (!hasFileInSentMessage) {
+        // File not in any sent message, safe to remove from allFiles
+        setAllFiles((current) => current.filter((f) => f.fileId !== fileId));
+      }
+      return prev;
+    });
   }, []);
 
   const handleToolApprove = useCallback(async () => {
@@ -295,7 +338,7 @@ export const Chat: React.FC = () => {
       <ChatShell title="Chat">
         <MessageList
           messages={messages}
-          files={attachedFiles}
+          files={allFiles}
           pendingParameterRequest={pendingParameterRequest}
           onParametersSubmit={handleParametersSubmit}
           onParametersCancel={handleParametersCancel}

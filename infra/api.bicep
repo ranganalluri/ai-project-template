@@ -18,6 +18,7 @@ param keyVaultName string = ''
 param foundryEndpoint string = ''
 param foundryProjectName string = ''
 param cosmosDbEndpoint string = ''
+param storageAccountName string = ''
 
 var foundryProjectEndpoint = '${foundryEndpoint}api/projects/${foundryProjectName}'
 
@@ -58,6 +59,20 @@ var keyVaultEnvVars = (!empty(keyVaultName)) ? [
   }
 ] : []
 
+var storageAccountEnvVars = (!empty(storageAccountName)) ? [
+  {
+    name: 'AZURE_STORAGE_ACCOUNT_NAME'
+    value: storageAccountName
+  }
+] : []
+
+var storageAccountKeyEnvVars = (!empty(keyVaultName)) ? [
+  {
+    name: 'AZURE_STORAGE_ACCOUNT_KEY'
+    secretRef: 'storage-account-key'
+  }
+] : []
+
 // Set AZURE_CLIENT_ID so DefaultAzureCredential knows which managed identity to use
 // This is required for user-assigned managed identities in Container Apps
 var managedIdentityEnvVars = (!empty(identityId)) ? [
@@ -67,7 +82,7 @@ var managedIdentityEnvVars = (!empty(identityId)) ? [
   }
 ] : []
 
-var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars, managedIdentityEnvVars, foundryConnectionStringEnvVars)
+var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars, managedIdentityEnvVars, foundryConnectionStringEnvVars, storageAccountEnvVars, storageAccountKeyEnvVars)
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: containerRegistryName
@@ -112,6 +127,11 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
         {
           name: 'cosmos-db-key'
           keyVaultUrl: '${keyVault.properties.vaultUri}secrets/CosmosDbKey'
+          identity: identityId
+        }
+        {
+          name: 'storage-account-key'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/StorageAccountKey'
           identity: identityId
         }
       ] : []

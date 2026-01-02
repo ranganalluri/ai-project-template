@@ -13,6 +13,7 @@
     "keyVaultName": { "value": "${KEY_VAULT_NAME}" },
     "foundryEndpoint": { "value": "${AI_FOUNDRY_ENDPOINT}" },
     "foundryProjectName": { "value": "${AI_FOUNDRY_PROJECT_NAME}" },
-    "cosmosDbEndpoint": { "value": "${AZURE_COSMOSDB_ENDPOINT}" }
+    "cosmosDbEndpoint": { "value": "${AZURE_COSMOSDB_ENDPOINT}" },
+    "storageAccountName": { "value": "${AZURE_STORAGE_ACCOUNT_NAME}" }
   }
 }

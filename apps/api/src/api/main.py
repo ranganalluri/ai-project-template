@@ -9,7 +9,7 @@ from api.middleware import get_cors_headers, setup_middleware
 from api.routes import api_router, chat_router_no_prefix
 from api.services.cosmos_db_init import initialize_cosmos_db
 from fastapi import FastAPI, Request, status
-from fastapi.exceptions import HTTPException
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 
 # Configure logging
@@ -53,6 +53,37 @@ app = FastAPI(
 
 # Setup middleware (must be before exception handlers)
 setup_middleware(app, ui_url=settings.ui_url, environment=settings.environment)
+
+
+# Request validation error handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Handle request validation errors with detailed logging."""
+    errors = exc.errors()
+    logger.error("Request validation error on %s %s", request.method, request.url.path)
+    for error in errors:
+        logger.error("Validation error: %s", error)
+    
+    # Try to log request body if available
+    try:
+        body = await request.body()
+        if body:
+            logger.error("Request body: %s", body.decode("utf-8", errors="replace")[:500])
+    except Exception:
+        pass
+    
+    # Get CORS headers
+    origin = request.headers.get("origin")
+    cors_headers = get_cors_headers(origin, ui_url=settings.ui_url, environment=settings.environment)
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": errors,
+            "body": str(exc.body) if hasattr(exc, "body") else None,
+        },
+        headers=cors_headers,
+    )
 
 
 # Exception handler to ensure CORS headers are present on all error responses

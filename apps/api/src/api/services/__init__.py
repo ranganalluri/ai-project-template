@@ -90,6 +90,7 @@ def get_file_storage(settings: Settings = Depends(get_settings)) -> BlobFileStor
             account_key=settings.azure_storage_account_key,
             container_name=settings.azure_storage_container_name,
             use_managed_identity=use_managed_identity,
+            blob_endpoint=settings.azure_storage_blob_endpoint,
         )
         logger.info("Initialized BlobFileStorage")
 

@@ -6,7 +6,10 @@ param location string
 param managedIdentityPrincipalId string
 param environment string = 'dev'
 param tags object = {}
+@secure()
 param cosmosDbKey string = ''
+@secure()
+param storageAccountKey string = ''
 
 // Key Vault resource
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -72,9 +75,20 @@ resource cosmosDbKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (
   }
 }
 
+// Storage Account Key secret
+resource storageAccountKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(storageAccountKey)) {
+  parent: keyVault
+  name: 'StorageAccountKey'
+  properties: {
+    value: storageAccountKey
+    contentType: 'text/plain'
+  }
+}
+
 output id string = keyVault.id
 output name string = keyVault.name
 output uri string = keyVault.properties.vaultUri
 output secretName string = 'FoundryProjectConnectionString'
 output cosmosDbKeySecretName string = 'CosmosDbKey'
+output storageAccountKeySecretName string = 'StorageAccountKey'
 

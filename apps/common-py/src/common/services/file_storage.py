@@ -9,6 +9,7 @@ from azure.identity import DefaultAzureCredential
 from azure.storage.blob import (
     BlobSasPermissions,
     BlobServiceClient,
+    ContentSettings,
     generate_blob_sas,
 )
 
@@ -50,6 +51,7 @@ class BlobFileStorage(FileStorage):
         account_key: str | None = None,
         container_name: str = "files",
         use_managed_identity: bool = False,
+        blob_endpoint: str | None = None,
     ) -> None:
         """Initialize Blob Storage file service.
 
@@ -58,6 +60,7 @@ class BlobFileStorage(FileStorage):
             account_key: Storage account key (if not using managed identity)
             container_name: Container name for files
             use_managed_identity: Use managed identity for authentication
+            blob_endpoint: Custom blob endpoint URL (for Azurite/local emulator)
         """
         self.account_name = account_name
         self.container_name = container_name
@@ -69,10 +72,35 @@ class BlobFileStorage(FileStorage):
         else:
             if not account_key:
                 raise ValueError("account_key is required when not using managed identity")
-            connection_string = (
-                f"DefaultEndpointsProtocol=https;AccountName={account_name};"
-                f"AccountKey={account_key};EndpointSuffix=core.windows.net"
-            )
+            
+            # Detect Azurite (local emulator) or use custom endpoint
+            is_azurite = account_name == "devstoreaccount1" or blob_endpoint is not None
+            
+            if is_azurite:
+                # Use Azurite connection string format
+                if blob_endpoint:
+                    # Custom endpoint provided
+                    endpoint = blob_endpoint
+                else:
+                    # Default Azurite endpoint
+                    endpoint = "http://127.0.0.1:10000/devstoreaccount1"
+                
+                # Azurite connection string format
+                connection_string = (
+                    f"DefaultEndpointsProtocol=http;"
+                    f"AccountName={account_name};"
+                    f"AccountKey={account_key};"
+                    f"BlobEndpoint={endpoint}"
+                )
+            else:
+                # Real Azure Storage connection string
+                connection_string = (
+                    f"DefaultEndpointsProtocol=https;"
+                    f"AccountName={account_name};"
+                    f"AccountKey={account_key};"
+                    f"EndpointSuffix=core.windows.net"
+                )
+            
             self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
 
         self.container_client = self.blob_service_client.get_container_client(container_name)
@@ -85,18 +113,23 @@ class BlobFileStorage(FileStorage):
             pass
 
     def upload_file(self, file_id: str, content: bytes, metadata: FileUploadResponse) -> str:
-        """Upload a file."""
+        """Upload a file with proper content type."""
         blob_client = self.container_client.get_blob_client(file_id)
+        
+        # Set content settings to preserve file type
+        content_settings = ContentSettings(content_type=metadata.content_type)
+        
         blob_client.upload_blob(
             data=content,
             overwrite=True,
+            content_settings=content_settings,
             metadata={
                 "filename": metadata.filename,
                 "content_type": metadata.content_type,
                 "size": str(metadata.size),
             },
         )
-        logger.info("Uploaded file %s to blob storage", file_id)
+        logger.info("Uploaded file %s to blob storage with content type %s", file_id, metadata.content_type)
         return file_id
 
     def download_file(self, file_id: str) -> bytes:

@@ -10,6 +10,7 @@
     "identityId": { "value": "${MANAGED_IDENTITY_ID}" },
     "resourceNamePrefix": { "value": "${RESOURCE_NAME_PREFIX}" },
     "resourceIndexSuffix": { "value": "${RESOURCE_INDEX_SUFFIX}" },
-    "keyVaultUri": { "value": "${KEY_VAULT_URI}" }
+    "keyVaultUri": { "value": "${KEY_VAULT_URI}" },
+    "storageAccountName": { "value": "${AZURE_STORAGE_ACCOUNT_NAME}" }
   }
 }

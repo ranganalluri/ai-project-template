@@ -8,10 +8,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from api.config import Settings
+from api.services.file_processor import FileProcessor
 from api.services.foundry_client import FoundryClient
 from api.services.tool_registry import ToolRegistry, tool_registry
 from common.models.chat import ChatMessage, ToolCall
 from common.services.chat_store import ChatStore
+from common.services.file_storage import FileStorage
 from common.services.instructions import AgentInstructions
 from openai.types.responses import EasyInputMessage, ResponseStreamEvent
 
@@ -39,6 +41,7 @@ class ChatService:
         foundry_client: FoundryClient,
         settings: Settings,
         chat_store: ChatStore,
+        file_storage: FileStorage,
         tool_registry_instance: ToolRegistry | None = None,
     ) -> None:
         """Initialize chat service.
@@ -47,11 +50,13 @@ class ChatService:
             foundry_client: Foundry client instance
             settings: Application settings
             chat_store: Chat store instance
+            file_storage: File storage instance
             tool_registry_instance: Optional ToolRegistry instance (defaults to global tool_registry)
         """
         self.foundry_client = foundry_client
         self.settings = settings
         self.chat_store = chat_store
+        self.file_storage = file_storage
         self.tool_registry = tool_registry_instance if tool_registry_instance is not None else tool_registry
 
     def _ensure_conversation_id(self, run_id: str, conversation_id: str | None) -> str:
@@ -599,6 +604,7 @@ class ChatService:
         The Responses API can accept:
         - EasyInputMessage objects for regular messages
         - Dictionary objects for function calls and function call outputs
+        - Dictionary objects with content array when files are included
 
         Args:
             messages: List of chat messages (may include function calls in content_items)
@@ -609,17 +615,16 @@ class ChatService:
         """
         responses_messages: list[EasyInputMessage | dict[str, Any]] = []
 
-        # Add system message with file context if files are attached
+        # Process files if present
+        file_content_items: list[dict[str, Any]] = []
         if file_ids:
-            file_context = "The user has attached the following files: " + ", ".join(file_ids)
-            responses_messages.append(
-                EasyInputMessage(
-                    role="system",
-                    content=file_context,
-                    type="message",
-                )
-            )
+            for file_id in file_ids:
+                file_item = FileProcessor.process_file(file_id, self.file_storage, self.chat_store)
+                if file_item:
+                    file_content_items.append(file_item)
 
+        # First pass: convert all messages without files
+        # We'll attach files to the last user message in a second pass
         for msg in messages:
             # Check if message has content_items with function calls or outputs
             if msg.content_items:
@@ -646,12 +651,14 @@ class ChatService:
                             }
                         )
                     elif content_type == "text":
-                        # Regular text message - add as EasyInputMessage
+                        # Regular text message
+                        text_content = content_item.get("text", "")
                         if msg.role in ["user", "assistant", "system"]:
+                            # Convert all messages first, attach files later
                             responses_messages.append(
                                 EasyInputMessage(
                                     role=msg.role,  # type: ignore
-                                    content=content_item.get("text", ""),
+                                    content=text_content,
                                     type="message",
                                 )
                             )
@@ -663,6 +670,7 @@ class ChatService:
                     logger.debug("Skipping legacy tool message without content_items")
                     continue
                 elif msg.role in ["user", "assistant", "system"]:
+                    # Convert all messages first, attach files later
                     responses_messages.append(
                         EasyInputMessage(
                             role=msg.role,  # type: ignore
@@ -672,7 +680,51 @@ class ChatService:
                     )
                 else:
                     # Unknown role, skip or log warning
-                    logger.warning(f"Unknown role '{msg.role}' in message, skipping")
+                    logger.warning("Unknown role '%s' in message, skipping", msg.role)
+
+        # Second pass: Attach files to the last user message (most recent)
+        if file_content_items:
+            # Find the last user message in responses_messages
+            last_user_index: int | None = None
+            for i in range(len(responses_messages) - 1, -1, -1):
+                msg = responses_messages[i]
+                # Check if it's an EasyInputMessage with user role
+                if hasattr(msg, "role") and msg.role == "user":
+                    last_user_index = i
+                    break
+                # Check if it's a dict with user role
+                elif isinstance(msg, dict) and msg.get("role") == "user":
+                    last_user_index = i
+                    break
+
+            if last_user_index is not None:
+                # Convert the last user message to content array format with files
+                msg = responses_messages[last_user_index]
+                if hasattr(msg, "content"):
+                    # EasyInputMessage - convert to dict with content array
+                    text_content = msg.content if isinstance(msg.content, str) else ""
+                    responses_messages[last_user_index] = {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": text_content}
+                        ] + file_content_items,
+                    }
+                elif isinstance(msg, dict):
+                    # Already a dict
+                    if isinstance(msg.get("content"), list):
+                        # Already has content array, add files
+                        msg["content"].extend(file_content_items)
+                    else:
+                        # Convert to content array format
+                        text_content = msg.get("content", "")
+                        msg["content"] = [
+                            {"type": "input_text", "text": text_content}
+                        ] + file_content_items
+            else:
+                # No user message found, create one with files
+                content_array: list[dict[str, Any]] = []
+                content_array.extend(file_content_items)
+                responses_messages.append({"role": "user", "content": content_array})
 
         return responses_messages
 

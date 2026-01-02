@@ -50,21 +50,29 @@ export const Composer: React.FC<ComposerProps> = ({
     <div className="composer">
       {attachedFiles.length > 0 && (
         <div className="composer-files">
-          {attachedFiles.map((file) => (
-            <div key={file.fileId} className="composer-file-chip">
-              📎 {file.filename}
-              {onRemoveFile && (
-                <button
-                  type="button"
-                  className="composer-file-remove"
-                  onClick={() => onRemoveFile(file.fileId)}
-                  aria-label="Remove file"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
+          {attachedFiles.map((file, index) => {
+            const isImage = file.contentType.startsWith('image/');
+            return (
+              <div key={file.fileId || `file-${index}`} className="composer-file-chip">
+                {isImage && file.dataUrl ? (
+                  <img src={file.dataUrl} alt={file.fileName} className="composer-file-thumbnail" />
+                ) : (
+                  <span className="composer-file-icon">📎</span>
+                )}
+                <span className="composer-file-name">{file.fileName}</span>
+                {onRemoveFile && (
+                  <button
+                    type="button"
+                    className="composer-file-remove"
+                    onClick={() => onRemoveFile(file.fileId)}
+                    aria-label="Remove file"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       <div className="composer-input-container">
