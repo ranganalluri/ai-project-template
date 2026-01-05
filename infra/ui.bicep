@@ -66,7 +66,7 @@ resource ui 'Microsoft.App/containerApps@2025-02-02-preview' = {
         }
       ]
       scale: {
-        minReplicas: 1
+        minReplicas: 0
         maxReplicas: 10
       }
     }
