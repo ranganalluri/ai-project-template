@@ -15,11 +15,14 @@ dependencies = [
     "azure-cosmos>=4.5.0",
     "azure-storage-blob>=12.19.0",
     "azure-identity>=1.14.0",
+    "azure-ai-projects>=2.0.0b2",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "pytest-mock>=3.12.0",
     "black>=23.0",
     "ruff>=0.1",
     "mypy>=1.0",
@@ -44,4 +47,10 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 python_files = ["test_*.py", "*_test.py"]
+markers = [
+    "integration: marks tests as integration tests that make real API calls",
+    "slow: marks tests as slow running"
+]
+

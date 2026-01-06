@@ -15,10 +15,14 @@
     },
     "python.analysis.extraPaths": [
         "${workspaceFolder}/apps/api/src",
-        "${workspaceFolder}/apps/common/src",
+        "${workspaceFolder}/apps/common-py/src",
         "${workspaceFolder}/apps/functions/src"
     ],
-    "python.analysis.exclude": [
-        "**/src"
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "python.testing.cwd": "${workspaceFolder}",
+    "python.testing.pytestArgs": [
+        "apps"
     ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
 }
