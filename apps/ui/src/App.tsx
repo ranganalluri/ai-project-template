@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Home } from '@/pages/Home';
 import { Agents } from '@/pages/Agents';
 import { Chat } from '@/pages/Chat';
+import { ContentProcessing } from '@/pages/ContentProcessing';
 import { Settings } from '@/pages/Settings';
 import '@/styles/index.css';
 import '@agentic/ui-lib/style.css';
@@ -22,6 +23,7 @@ const App: React.FC = () => {
               <Route path="/home" element={<Home />} />
               <Route path="/agents" element={<Agents />} />
               <Route path="/chat" element={<Chat />} />
+              <Route path="/content-processing" element={<ContentProcessing />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>

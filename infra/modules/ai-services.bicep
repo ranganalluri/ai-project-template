@@ -163,3 +163,5 @@ output primaryKey string = aiFoundryAccount.listKeys().key1
 output projectNameOut string = (!empty(projectName)) ? aiProject.name : ''
 output projectId string = (!empty(projectName)) ? aiProject.id : ''
 output gpt4DeploymentName string = (!empty(projectName)) ? gpt4Deployment.name : ''
+// Content Understanding endpoint from account endpoints
+output cuEndpoint string = aiFoundryAccount.properties.endpoints['Content Understanding']

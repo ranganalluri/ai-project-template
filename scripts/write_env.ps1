@@ -1,15 +1,5 @@
-# Define the .env file path
-$envDir = "apps\api"
-$envFilePath = Join-Path $envDir ".env"
-
-# Ensure the directory exists
-if (-not (Test-Path $envDir)) {
-    New-Item -ItemType Directory -Path $envDir -Force | Out-Null
-    Write-Host "Created directory: $envDir" -ForegroundColor Yellow
-}
-
-# Clear the contents of the .env file
-Set-Content -Path $envFilePath -Value ""
+# Define the directories where .env files should be created
+$envDirs = @("apps\api", "apps\common-py")
 
 # Get values from azd environment variables
 $azureCosmosDbEndpoint = 'https://localhost:8081/'
@@ -20,6 +10,45 @@ $aiFoundryProjectName = azd env get-value AI_FOUNDRY_PROJECT_NAME 2>$null
 $aiFoundryGpt4Deployment = azd env get-value AI_FOUNDRY_GPT4_DEPLOYMENT 2>$null
 $foundryConnectionString = azd env get-value FOUNDRY_CONNECTION_STRING 2>$null
 $managedIdentityClientId = azd env get-value MANAGED_IDENTITY_CLIENT_ID 2>$null
+$cuEndpoint = azd env get-value CU_ENDPOINT 2>$null
+
+# CU_KEY is marked as @secure() in Bicep, so azd may not expose it via env get-value
+# Try to get it from azd first, then fall back to Key Vault if available
+$ErrorActionPreference = 'SilentlyContinue'
+$cuKeyOutput = azd env get-value CU_KEY 2>&1
+$ErrorActionPreference = 'Continue'
+
+# Check if the output is an error message or actual value
+$cuKey = $null
+if ($cuKeyOutput -and -not ($cuKeyOutput -match "ERROR|not found")) {
+    $cuKey = $cuKeyOutput.Trim()
+}
+
+Write-Host "CU_KEY from azd: $(if ($cuKey) { 'Found' } else { 'Not found or secure' })" -ForegroundColor $(if ($cuKey) { 'Green' } else { 'Yellow' })
+
+if ([string]::IsNullOrWhiteSpace($cuKey)) {
+    # Try to get from Key Vault as fallback (for local development)
+    $keyVaultName = azd env get-value KEY_VAULT_NAME 2>$null
+    if ($keyVaultName -and -not [string]::IsNullOrWhiteSpace($keyVaultName)) {
+        Write-Host "Attempting to retrieve CU_KEY from Key Vault: $keyVaultName" -ForegroundColor Cyan
+        try {
+            $cuKey = az keyvault secret show --vault-name $keyVaultName --name CuKey --query value -o tsv 2>$null
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($cuKey)) {
+                Write-Host "Successfully retrieved CU_KEY from Key Vault" -ForegroundColor Green
+            } else {
+                Write-Host "CU_KEY not found in Key Vault (secret name: CuKey)" -ForegroundColor Yellow
+                $cuKey = $null
+            }
+        } catch {
+            Write-Host "Failed to retrieve CU_KEY from Key Vault: $_" -ForegroundColor Yellow
+            $cuKey = $null
+        }
+    } else {
+        Write-Host "KEY_VAULT_NAME not found, skipping Key Vault lookup for CU_KEY" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "CU_KEY retrieved from azd environment" -ForegroundColor Green
+}
 $azureStorageAccountName = 'devstoreaccount1'
 $azureStorageAccountKey = 'Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=='
 $uiUrl = 'https://localhost:5173/'
@@ -30,42 +59,66 @@ if ($aiFoundryEndpoint -and $aiFoundryProjectName) {
     $foundryEndpoint = "${aiFoundryEndpoint}api/projects/${aiFoundryProjectName}"
 }
 
-# Append values to the .env file (only if they have values)
+# Build the .env file content
+$envContent = @()
+
 if ($azureCosmosDbEndpoint) {
-    Add-Content -Path $envFilePath -Value "AZURE_COSMOSDB_ENDPOINT=$azureCosmosDbEndpoint"
+    $envContent += "AZURE_COSMOSDB_ENDPOINT=$azureCosmosDbEndpoint"
 }
 
 if ($azureCosmosDbKey) {
-    Add-Content -Path $envFilePath -Value "AZURE_COSMOSDB_KEY=$azureCosmosDbKey"
+    $envContent += "AZURE_COSMOSDB_KEY=$azureCosmosDbKey"
 }
 
 if ($azureCosmosDbDatabaseName) {
-    Add-Content -Path $envFilePath -Value "DATABASE_NAME=$azureCosmosDbDatabaseName"
+    $envContent += "DATABASE_NAME=$azureCosmosDbDatabaseName"
 }
 
 if ($foundryEndpoint) {
-    Add-Content -Path $envFilePath -Value "FOUNDRY_ENDPOINT=$foundryEndpoint"
+    $envContent += "FOUNDRY_ENDPOINT=$foundryEndpoint"
 }
 
 if ($foundryConnectionString) {
-    Add-Content -Path $envFilePath -Value "FOUNDRY_PROJECT_CONNECTION_STRING=$foundryConnectionString"
+    $envContent += "FOUNDRY_PROJECT_CONNECTION_STRING=$foundryConnectionString"
 }
 
 if ($aiFoundryGpt4Deployment) {
-    Add-Content -Path $envFilePath -Value "FOUNDRY_DEPLOYMENT_NAME=$aiFoundryGpt4Deployment"
+    $envContent += "FOUNDRY_DEPLOYMENT_NAME=$aiFoundryGpt4Deployment"
 }
 
 if ($azureStorageAccountName) {
-    Add-Content -Path $envFilePath -Value "AZURE_STORAGE_ACCOUNT_NAME=$azureStorageAccountName"
+    $envContent += "AZURE_STORAGE_ACCOUNT_NAME=$azureStorageAccountName"
 }
 
 if ($azureStorageAccountKey) {
-    Add-Content -Path $envFilePath -Value "AZURE_STORAGE_ACCOUNT_KEY=$azureStorageAccountKey"
+    $envContent += "AZURE_STORAGE_ACCOUNT_KEY=$azureStorageAccountKey"
 }
 
 if ($uiUrl) {
-    Add-Content -Path $envFilePath -Value "UI_URL=$uiUrl"
+    $envContent += "UI_URL=$uiUrl"
 }
 
-Write-Host ".env file created at $envFilePath" -ForegroundColor Green
+if ($cuEndpoint) {
+    $envContent += "CU_ENDPOINT=$cuEndpoint"
+}
+
+if ($cuKey) {
+    $envContent += "CU_KEY=$cuKey"
+}
+
+# Write .env file to each directory
+foreach ($envDir in $envDirs) {
+    # Ensure the directory exists
+    if (-not (Test-Path $envDir)) {
+        New-Item -ItemType Directory -Path $envDir -Force | Out-Null
+        Write-Host "Created directory: $envDir" -ForegroundColor Yellow
+    }
+
+    $envFilePath = Join-Path $envDir ".env"
+    
+    # Write the content to the .env file
+    Set-Content -Path $envFilePath -Value $envContent
+    
+    Write-Host ".env file created at $envFilePath" -ForegroundColor Green
+}
 

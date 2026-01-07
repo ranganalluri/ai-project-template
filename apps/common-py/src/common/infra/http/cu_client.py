@@ -77,7 +77,7 @@ class AzureContentUnderstandingClient:
         return headers
 
     def _get_analyze_url(self, analyzer_id: str) -> str:
-        """Get analyze URL for analyzer.
+        """Get analyze URL for analyzer (for URL-based requests).
 
         Args:
             analyzer_id: Analyzer ID
@@ -87,40 +87,107 @@ class AzureContentUnderstandingClient:
         """
         return f"{self._endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={self._api_version}"
 
-    def begin_analyze(self, analyzer_id: str, file_location: str) -> Response:
-        """Begin analysis of a file or URL.
+    def _get_analyze_binary_url(self, analyzer_id: str) -> str:
+        """Get analyzeBinary URL for analyzer (for binary data requests).
+
+        Args:
+            analyzer_id: Analyzer ID
+
+        Returns:
+            AnalyzeBinary URL
+        """
+        return f"{self._endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyzeBinary?api-version={self._api_version}"
+
+    def begin_analyze(self, analyzer_id: str, file_location: str | None = None, file_bytes: bytes | None = None, source_type: str | None = None) -> Response:
+        """Begin analysis of a file, URL, or bytes.
 
         Args:
             analyzer_id: Analyzer ID to use
-            file_location: Path to file or URL to analyze
+            file_location: Path to file or URL to analyze (optional if file_bytes is provided)
+            file_bytes: File content as bytes (optional if file_location is provided)
+            source_type: Source type hint (e.g., "pdf", "image") to determine Content-Type
 
         Returns:
             Response object with operation-location header
+
+        Raises:
+            ValueError: If neither file_location nor file_bytes is provided
         """
         data = None
-        if Path(file_location).exists():
-            with open(file_location, "rb") as file:
-                data = file.read()
-            headers = {"Content-Type": "application/octet-stream"}
-        elif file_location.startswith("https://") or file_location.startswith("http://"):
-            # Use new API format with inputs array
-            data = {"inputs": [{"url": file_location}]}
-            headers = {"Content-Type": "application/json"}
+        headers = {}
+        
+        if file_bytes is not None:
+            # Use analyzeBinary endpoint for binary data (per Microsoft API documentation)
+            # Determine content type from source_type or default to application/octet-stream
+            content_type = "application/octet-stream"
+            if source_type:
+                source_lower = source_type.lower()
+                if source_lower == "pdf":
+                    content_type = "application/pdf"
+                elif source_lower == "image":
+                    # Default to image/png if we can't determine specific image type
+                    content_type = "image/png"
+                elif source_lower in ("png", "jpg", "jpeg", "gif", "bmp", "tiff"):
+                    content_type = f"image/{source_lower}"
+            
+            # Send raw binary data with Content-Type header (per API spec: Media Types: "*/*")
+            headers = self._headers.copy()
+            headers["Content-Type"] = content_type
+            data = file_bytes
+            url = self._get_analyze_binary_url(analyzer_id)
+        elif file_location:
+            if Path(file_location).exists():
+                # Local file path - read and send as binary using analyzeBinary endpoint
+                file_path = Path(file_location)
+                with open(file_location, "rb") as file:
+                    file_content = file.read()
+                # Try to determine content type from extension
+                content_type = "application/octet-stream"
+                suffix_lower = file_path.suffix.lower()
+                if suffix_lower == ".pdf":
+                    content_type = "application/pdf"
+                elif suffix_lower in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff"}:
+                    content_type = f"image/{suffix_lower.lstrip('.')}"
+                
+                headers = self._headers.copy()
+                headers["Content-Type"] = content_type
+                data = file_content
+                url = self._get_analyze_binary_url(analyzer_id)
+            elif file_location.startswith("https://") or file_location.startswith("http://"):
+                # URL - use analyze endpoint with JSON format
+                data = {"inputs": [{"url": file_location}]}
+                headers = self._headers.copy()
+                headers["Content-Type"] = "application/json"
+                url = self._get_analyze_url(analyzer_id)
+            else:
+                raise ValueError("File location must be a valid path or URL.")
         else:
-            raise ValueError("File location must be a valid path or URL.")
+            raise ValueError("Either file_location or file_bytes must be provided.")
 
-        headers.update(self._headers)
+        try:
+            if isinstance(data, dict):
+                response = requests.post(url=url, headers=headers, json=data, timeout=30)
+            else:
+                # Send raw binary data
+                response = requests.post(url=url, headers=headers, data=data, timeout=30)
 
-        url = self._get_analyze_url(analyzer_id)
-
-        if isinstance(data, dict):
-            response = requests.post(url=url, headers=headers, json=data, timeout=30)
-        else:
-            response = requests.post(url=url, headers=headers, data=data, timeout=30)
-
-        response.raise_for_status()
-        logger.info("Started analysis with analyzer %s for %s", analyzer_id, file_location)
-        return response
+            response.raise_for_status()
+            input_source = "bytes" if file_bytes is not None else file_location or "unknown"
+            logger.info("Started analysis with analyzer %s for %s", analyzer_id, input_source)
+            return response
+        except requests.exceptions.HTTPError as e:
+            # Log detailed error information
+            response = e.response
+            error_msg = f"HTTP {response.status_code} error"
+            try:
+                error_body = response.text
+                logger.error("API error response: %s", error_body)
+                error_msg += f": {error_body}"
+            except Exception:
+                pass
+            logger.error("Request URL: %s", url)
+            logger.error("Request headers: %s", {k: v for k, v in headers.items() if k not in ("Authorization", "Ocp-Apim-Subscription-Key")})
+            raise
 
     def poll_result(
         self,

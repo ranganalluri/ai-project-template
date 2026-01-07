@@ -19,25 +19,45 @@ class CuExtractor:
         """
         self.client = client or AzureContentUnderstandingClient()
 
-    def extract_to_raw(self, input_blob_url: str, analyzer_id: str, source_type: str | None = None) -> dict:
+    def extract_to_raw(
+        self,
+        analyzer_id: str,
+        input_blob_url: str | None = None,
+        file_bytes: bytes | None = None,
+        source_type: str | None = None,
+    ) -> dict:
         """Extract raw JSON from Content Understanding.
 
         Args:
-            input_blob_url: Blob URL of the input document
             analyzer_id: Analyzer ID to use
+            input_blob_url: Blob URL of the input document (optional if file_bytes is provided)
+            file_bytes: File content as bytes (optional if input_blob_url is provided)
             source_type: Optional source type (for future use)
 
         Returns:
             Raw CU JSON output
+
+        Raises:
+            ValueError: If neither input_blob_url nor file_bytes is provided
         """
         try:
-            logger.info(f"Starting CU extraction for {input_blob_url} with analyzer {analyzer_id}")
-            response = self.client.begin_analyze(analyzer_id=analyzer_id, file_location=input_blob_url)
+            if file_bytes is not None:
+                logger.info("Starting CU extraction with bytes (size: %d) using analyzer %s", len(file_bytes), analyzer_id)
+                response = self.client.begin_analyze(analyzer_id=analyzer_id, file_bytes=file_bytes, source_type=source_type)
+            elif input_blob_url:
+                logger.info("Starting CU extraction for %s with analyzer %s", input_blob_url, analyzer_id)
+                response = self.client.begin_analyze(analyzer_id=analyzer_id, file_location=input_blob_url)
+            else:
+                raise ValueError("Either input_blob_url or file_bytes must be provided")
+            
             result = self.client.poll_result(response, timeout_seconds=300)
-            logger.info(f"CU extraction completed for {input_blob_url}")
+            
+            input_source = "bytes" if file_bytes is not None else input_blob_url or "unknown"
+            logger.info("CU extraction completed for %s", input_source)
             return result
         except Exception as e:
-            logger.error(f"Failed to extract CU data from {input_blob_url}: {e}")
+            input_source = "bytes" if file_bytes is not None else input_blob_url or "unknown"
+            logger.error("Failed to extract CU data from %s: %s", input_source, e)
             raise
 
     def normalize(self, cu_raw_json: dict) -> CuNormalizedDocument:

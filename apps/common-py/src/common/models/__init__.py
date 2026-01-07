@@ -10,7 +10,7 @@ from common.models.chat import (
 )
 from common.models.document import (
     CuNormalizedDocument,
-    DocumentMetadata,
+    Cu_Record,
     DocumentStatus,
     EvidenceSpan,
     ExtractedField,
@@ -22,7 +22,7 @@ __all__ = [
     "ChatMessage",
     "ChatRequest",
     "CuNormalizedDocument",
-    "DocumentMetadata",
+    "Cu_Record",
     "DocumentStatus",
     "EvidenceSpan",
     "ExtractedField",

@@ -121,6 +121,39 @@ class CosmosDbInitializer:
             )
             raise
 
+        # Create documentMetadata container for content processing
+        try:
+            from common.config.document_config import get_document_config
+
+            doc_config = get_document_config()
+            metadata_pk = PartitionKey(path="/id")
+
+            if is_emulator:
+                self.database.create_container_if_not_exists(
+                    id=doc_config.cosmos_container,
+                    partition_key=metadata_pk,
+                    offer_throughput=400,
+                )
+            else:
+                self.database.create_container_if_not_exists(
+                    id=doc_config.cosmos_container,
+                    partition_key=metadata_pk,
+                )
+
+            logger.info(
+                "Container '%s' initialized with partition key '/id'",
+                doc_config.cosmos_container,
+            )
+        except exceptions.CosmosResourceExistsError:
+            logger.info("Container '%s' already exists", doc_config.cosmos_container)
+        except Exception as e:
+            logger.error(
+                "Failed to create container '%s': %s",
+                doc_config.cosmos_container,
+                e,
+            )
+            raise
+
     def initialize(self) -> None:
         """Run full initialization: connect, create database and containers."""
         self.connect()

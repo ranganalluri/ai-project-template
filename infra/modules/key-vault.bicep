@@ -10,6 +10,8 @@ param tags object = {}
 param cosmosDbKey string = ''
 @secure()
 param storageAccountKey string = ''
+@secure()
+param cuKey string = ''
 
 // Key Vault resource
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -85,10 +87,21 @@ resource storageAccountKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' 
   }
 }
 
+// Content Understanding Key secret
+resource cuKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(cuKey)) {
+  parent: keyVault
+  name: 'CuKey'
+  properties: {
+    value: cuKey
+    contentType: 'text/plain'
+  }
+}
+
 output id string = keyVault.id
 output name string = keyVault.name
 output uri string = keyVault.properties.vaultUri
 output secretName string = 'FoundryProjectConnectionString'
 output cosmosDbKeySecretName string = 'CosmosDbKey'
 output storageAccountKeySecretName string = 'StorageAccountKey'
+output cuKeySecretName string = 'CuKey'
 

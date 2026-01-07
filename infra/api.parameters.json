@@ -14,6 +14,8 @@
     "foundryEndpoint": { "value": "${AI_FOUNDRY_ENDPOINT}" },
     "foundryProjectName": { "value": "${AI_FOUNDRY_PROJECT_NAME}" },
     "cosmosDbEndpoint": { "value": "${AZURE_COSMOSDB_ENDPOINT}" },
-    "storageAccountName": { "value": "${AZURE_STORAGE_ACCOUNT_NAME}" }
+    "storageAccountName": { "value": "${AZURE_STORAGE_ACCOUNT_NAME}" },
+    "cuEndpoint": { "value": "${CU_ENDPOINT}" },
+    "foundryAccountKey": { "value": "${CU_KEY}" }
   }
 }

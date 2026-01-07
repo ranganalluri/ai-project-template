@@ -150,6 +150,8 @@ module keyVault 'modules/key-vault.bicep' = if (keyVaultEnabled) {
     environment: environment
     cosmosDbKey: cosmosDb.outputs.key
     storageAccountKey: storageAccount.outputs.primaryKey
+    // CU can use the same account key as Foundry if they're in the same Cognitive Services account
+    cuKey: aiServices.outputs.primaryKey
     tags: {
       region: regionCode
       createdBy: 'bicep'
@@ -199,3 +201,11 @@ output FOUNDRY_CONNECTION_STRING_SECRET_NAME string = (keyVaultEnabled) ? keyVau
 output FOUNDRY_CONNECTION_STRING string = (keyVaultEnabled) ? 'Update Key Vault secret "${keyVault!.outputs.secretName}" after creating AI Project' : ''
 output COSMOS_DB_KEY_SECRET_NAME string = (keyVaultEnabled) ? keyVault!.outputs.cosmosDbKeySecretName : ''
 output STORAGE_ACCOUNT_KEY_SECRET_NAME string = (keyVaultEnabled) ? keyVault!.outputs.storageAccountKeySecretName : ''
+output CU_KEY_SECRET_NAME string = (keyVaultEnabled) ? keyVault!.outputs.cuKeySecretName : ''
+
+// Content Understanding outputs
+// CU endpoint is extracted from the Foundry account's endpoints property
+// CU key is the same as Foundry account key (same Cognitive Services account)
+output CU_ENDPOINT string = aiServices.outputs.cuEndpoint
+@secure()
+output CU_KEY string = aiServices.outputs.primaryKey

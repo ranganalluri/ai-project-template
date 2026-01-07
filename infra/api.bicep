@@ -19,6 +19,8 @@ param foundryEndpoint string = ''
 param foundryProjectName string = ''
 param cosmosDbEndpoint string = ''
 param storageAccountName string = ''
+param cuEndpoint string = ''
+param foundryAccountKey string = ''
 
 var foundryProjectEndpoint = '${foundryEndpoint}api/projects/${foundryProjectName}'
 
@@ -73,6 +75,27 @@ var storageAccountKeyEnvVars = (!empty(keyVaultName)) ? [
   }
 ] : []
 
+// Content Understanding endpoint (separate from Foundry endpoint)
+var cuEndpointEnvVars = (!empty(cuEndpoint)) ? [
+  {
+    name: 'CU_ENDPOINT'
+    value: cuEndpoint
+  }
+] : []
+
+// Content Understanding key (can use same account key as Foundry if same Cognitive Services account)
+var cuKeyEnvVars = (!empty(keyVaultName) && !empty(foundryAccountKey)) ? [
+  {
+    name: 'CU_KEY'
+    secretRef: 'cu-key'
+  }
+] : (!empty(foundryAccountKey)) ? [
+  {
+    name: 'CU_KEY'
+    value: foundryAccountKey
+  }
+] : []
+
 // Set AZURE_CLIENT_ID so DefaultAzureCredential knows which managed identity to use
 // This is required for user-assigned managed identities in Container Apps
 var managedIdentityEnvVars = (!empty(identityId)) ? [
@@ -82,7 +105,7 @@ var managedIdentityEnvVars = (!empty(identityId)) ? [
   }
 ] : []
 
-var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars, managedIdentityEnvVars, foundryConnectionStringEnvVars, storageAccountEnvVars, storageAccountKeyEnvVars)
+var allEnvVars = concat(baseEnvVars, cosmosEnvVars, keyVaultEnvVars, managedIdentityEnvVars, foundryConnectionStringEnvVars, storageAccountEnvVars, storageAccountKeyEnvVars, cuEndpointEnvVars, cuKeyEnvVars)
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: containerRegistryName
@@ -118,7 +141,8 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
           identity: identityId
         }
       ]
-      secrets: (!empty(keyVaultName)) ? [
+      // Build secrets array conditionally
+      var baseSecrets = (!empty(keyVaultName)) ? [
         {
           name: 'foundry-connection-string'
           keyVaultUrl: '${keyVault.properties.vaultUri}secrets/FoundryProjectConnectionString'
@@ -135,6 +159,16 @@ resource api 'Microsoft.App/containerApps@2025-02-02-preview' = {
           identity: identityId
         }
       ] : []
+      
+      var cuKeySecret = (!empty(keyVaultName) && !empty(foundryAccountKey)) ? [
+        {
+          name: 'cu-key'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/CuKey'
+          identity: identityId
+        }
+      ] : []
+      
+      secrets: concat(baseSecrets, cuKeySecret)
       activeRevisionsMode: 'Single'
     }
     template: {

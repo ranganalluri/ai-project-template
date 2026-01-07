@@ -80,6 +80,7 @@ class Settings(BaseSettings):
         env_file=_get_env_file_path(),
         case_sensitive=False,
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
 

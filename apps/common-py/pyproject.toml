@@ -17,6 +17,9 @@ dependencies = [
     "azure-identity>=1.14.0",
     "azure-ai-projects>=2.0.0b2",
     "requests>=2.31.0",
+    "PyMuPDF>=1.23.0",
+    "Pillow>=10.0.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +29,7 @@ dev = [
     "black>=23.0",
     "ruff>=0.1",
     "mypy>=1.0",
+    "tiktoken>=0.9.0",
 ]
 
 [tool.hatch.build.targets.wheel]
