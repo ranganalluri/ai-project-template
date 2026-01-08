@@ -16,8 +16,6 @@
   "sideEffects": [
     "*.css"
   ],
-
-
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm,cjs --out-dir dist",
     "build:watch": "tsup src/index.ts --dts --format esm,cjs --out-dir dist --watch",
@@ -31,7 +29,9 @@
     "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test"
   },
   "dependencies": {
-    "@microsoft/fetch-event-source": "^2.0.1"
+    "@microsoft/fetch-event-source": "^2.0.1",
+    "ol": "^10.7.0",
+    "pdfjs-dist": "^5.4.530"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

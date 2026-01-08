@@ -10,12 +10,33 @@ export interface ContentProcessingRequest {
   force?: boolean;
 }
 
+export interface PageDimension {
+  page: number;
+  width: number;
+  height: number;
+}
+
+// Re-export FieldEvidence from utils
+export type { FieldEvidence } from '../utils/pdfCoordinates';
+
 export interface ContentProcessingResponse {
   documentId: string;
   status: string;
   originalBlobUrl?: string | null;
   schemaBlobUrl?: string | null;
   imageBlobUrls?: string[] | null;
+  evidence?: {
+    fields: Array<{
+      fieldPath: string;
+      evidence: Array<{
+        page: number;
+        polygon: Array<{ x: number; y: number }>;
+        sourceText: string;
+        confidence: number;
+      }>;
+    }>;
+  } | null;
+  pageDimensions?: PageDimension[] | null;
   error?: Record<string, unknown> | null;
 }
 

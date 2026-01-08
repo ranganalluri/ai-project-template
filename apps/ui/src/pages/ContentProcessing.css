@@ -1,0 +1,24 @@
+.pdf-viewer-layout {
+  display: flex;
+  gap: 1rem;
+  min-height: 1000px;
+  align-items: flex-start;
+}
+
+.pdf-viewer-section {
+  flex: 0 0 70%;
+  max-width: 70%;
+  min-height: 1000px;
+  display: flex;
+  flex-direction: column;
+}
+
+.fields-panel-section {
+  flex: 0 0 30%;
+  max-width: 30%;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+

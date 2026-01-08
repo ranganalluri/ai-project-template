@@ -7,7 +7,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   outDir: 'dist',
-  external: ['react', 'react-dom'],
+  external: ['react', 'react-dom', 'ol', 'pdfjs-dist'],
   tsconfig: './tsconfig.json',
   // loader: {
   //   '.css': 'copy',

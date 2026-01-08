@@ -9,6 +9,8 @@ import { ContentProcessing } from '@/pages/ContentProcessing';
 import { Settings } from '@/pages/Settings';
 import '@/styles/index.css';
 import '@agentic/ui-lib/style.css';
+// Setup PDF.js worker before any PDF operations
+import '@/utils/pdfWorkerSetup';
 
 const App: React.FC = () => {
   return (

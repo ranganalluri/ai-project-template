@@ -7,7 +7,7 @@ export const Button: React.FC<ButtonProps> = ({ children, className = '', onClic
   const [clicked, setClicked] = useState(false);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-    setClicked(true);
+    // setClicked(true);
     if (onClick) onClick(e);
   };
 

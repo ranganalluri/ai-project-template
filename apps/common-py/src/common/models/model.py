@@ -14,17 +14,19 @@ class DataExtractionResult(BaseModel):
     A class representing the result of data extraction.
 
     Attributes:
-        extract_result: The extracted data.
+        extracted_result: The extracted data.
         confidence: The confidence of the extracted data.
-        accuracy: The accuracy of the extracted data.
+        comparison_result: The comparison result with page numbers and polygons for each field.
         prompt_tokens: The number of tokens in the prompt.
         completion_tokens: The number of tokens in the completion.
         execution_time: The execution time of the data extraction.
+    
+    Note: Page numbers and polygons are available in comparison_result.items[].PageNumber 
+    and comparison_result.items[].Polygon respectively, extracted from Content Understanding data.
     """
 
     extracted_result: dict
     confidence: dict
-    # self.accuracy = accuracy
     comparison_result: ExtractionComparisonData
     prompt_tokens: int
     completion_tokens: int

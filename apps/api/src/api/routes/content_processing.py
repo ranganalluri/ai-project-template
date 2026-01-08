@@ -40,6 +40,8 @@ class ContentProcessingResponse(BaseModel):
     original_blob_url: str | None = None
     schema_blob_url: str | None = None
     image_blob_urls: list[str] | None = None
+    evidence: dict | None = None  # Field evidence with polygons
+    page_dimensions: list[dict] | None = None  # Page dimensions: [{page: 1, width: 612, height: 792}, ...]
     error: dict | None = None
 
 
@@ -163,12 +165,61 @@ async def process_content(
                 force=force,
             )
 
+            # Load evidence and page dimensions if available
+            evidence = None
+            page_dimensions = None
+            if result.status == DocumentStatus.DONE:
+                try:
+                    # Load evidence.json
+                    evidence_path = f"{tenant_id}/{user_id}/{result.id}/schema/evidence.json"
+                    evidence = blob_client.download_json("content", evidence_path)
+                except Exception as e:
+                    logger.warning("Failed to load evidence.json: %s", e)
+
+                try:
+                    # Load CU artifact to get page dimensions
+                    if result.cu_artifact_blob_url:
+                        # Extract blob path from URL
+                        from urllib.parse import urlparse
+                        parsed_url = urlparse(result.cu_artifact_blob_url)
+                        # Path format: /container/path/to/file
+                        path_parts = parsed_url.path.lstrip("/").split("/", 1)
+                        if len(path_parts) == 2:
+                            container_name = path_parts[0]
+                            blob_path = path_parts[1]
+                            cu_artifact = blob_client.download_json(container_name, blob_path)
+                            
+                            # Extract page dimensions from CU artifact
+                            if "pages" in cu_artifact:
+                                page_dimensions = [
+                                    {
+                                        "page": page.get("pageNumber", i + 1),
+                                        "width": page.get("width", 612.0),  # Default US Letter width
+                                        "height": page.get("height", 792.0),  # Default US Letter height
+                                    }
+                                    for i, page in enumerate(cu_artifact["pages"])
+                                ]
+                            elif "analyzeResult" in cu_artifact and "pages" in cu_artifact["analyzeResult"]:
+                                # Alternative structure
+                                page_dimensions = [
+                                    {
+                                        "page": page.get("pageNumber", i + 1),
+                                        "width": page.get("width", 612.0),
+                                        "height": page.get("height", 792.0),
+                                    }
+                                    for i, page in enumerate(cu_artifact["analyzeResult"]["pages"])
+                                ]
+                except Exception as e:
+                    logger.warning("Failed to load page dimensions: %s", e)
+
             return ContentProcessingResponse(
                 document_id=result.id,
                 status=result.status.value,
                 original_blob_url=result.original_blob_url,
                 schema_blob_url=result.schema_blob_url,
                 image_blob_urls=result.image_blob_urls,
+                evidence=evidence,
+                page_dimensions=page_dimensions,
                 error=result.error,
             )
         except Exception as e:
@@ -234,12 +285,60 @@ async def get_processing_status(
         if not meta:
             raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
 
+        # Load evidence and page dimensions if available
+        evidence = None
+        page_dimensions = None
+        blob_client = BlobClientWrapper()
+        
+        if meta.status == DocumentStatus.DONE:
+            try:
+                # Load evidence.json
+                evidence_path = f"{tenant_id}/{document_id}/schema/evidence.json"
+                evidence = blob_client.download_json("content", evidence_path)
+            except Exception as e:
+                logger.warning("Failed to load evidence.json: %s", e)
+
+            try:
+                # Load CU artifact to get page dimensions
+                if meta.cu_artifact_blob_url:
+                    from urllib.parse import urlparse
+                    parsed_url = urlparse(meta.cu_artifact_blob_url)
+                    path_parts = parsed_url.path.lstrip("/").split("/", 1)
+                    if len(path_parts) == 2:
+                        container_name = path_parts[0]
+                        blob_path = path_parts[1]
+                        cu_artifact = blob_client.download_json(container_name, blob_path)
+                        
+                        # Extract page dimensions from CU artifact
+                        if "pages" in cu_artifact:
+                            page_dimensions = [
+                                {
+                                    "page": page.get("pageNumber", i + 1),
+                                    "width": page.get("width", 612.0),
+                                    "height": page.get("height", 792.0),
+                                }
+                                for i, page in enumerate(cu_artifact["pages"])
+                            ]
+                        elif "analyzeResult" in cu_artifact and "pages" in cu_artifact["analyzeResult"]:
+                            page_dimensions = [
+                                {
+                                    "page": page.get("pageNumber", i + 1),
+                                    "width": page.get("width", 612.0),
+                                    "height": page.get("height", 792.0),
+                                }
+                                for i, page in enumerate(cu_artifact["analyzeResult"]["pages"])
+                            ]
+            except Exception as e:
+                logger.warning("Failed to load page dimensions: %s", e)
+
         return ContentProcessingResponse(
             document_id=meta.id,
             status=meta.status.value,
             original_blob_url=meta.original_blob_url,
             schema_blob_url=meta.schema_blob_url,
             image_blob_urls=meta.image_blob_urls,
+            evidence=evidence,
+            page_dimensions=page_dimensions,
             error=meta.error,
         )
     except HTTPException:

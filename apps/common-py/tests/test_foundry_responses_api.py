@@ -151,6 +151,92 @@ def extract_token_logprobs(logprobs_data: Any) -> list[dict[str, Any]]:
     
     return tokens
 
+def _enrich_merged_confidence_with_polygons(merged_conf: dict, cu_confidence: dict) -> dict:
+    """Enrich merged confidence score with polygon data and page numbers from Content Understanding.
+    
+    Ensures that polygon information (combined_polygon, word_polygons, word_details)
+    and page numbers from Content Understanding confidence are preserved in the merged result 
+    for all fields including nested fields and list items.
+    
+    Args:
+        merged_conf: The merged confidence dictionary from GPT and CU
+        cu_confidence: The original Content Understanding confidence with polygon data
+        
+    Returns:
+        Enriched merged confidence dictionary with polygon information and page numbers
+    """
+    import copy
+    
+    def _merge_with_polygons(merged: dict, cu: dict) -> dict:
+        """Recursively merge polygon data and page numbers from CU confidence into merged confidence."""
+        for key, cu_value in cu.items():
+            if key == "_overall":
+                continue
+            
+            # Ensure key exists in merged
+            if key not in merged:
+                if isinstance(cu_value, dict):
+                    merged[key] = {}
+                elif isinstance(cu_value, list):
+                    merged[key] = []
+                else:
+                    merged[key] = cu_value
+                    continue
+            
+            merged_value = merged[key]
+            
+            # Handle dictionary values
+            if isinstance(cu_value, dict) and isinstance(merged_value, dict):
+                # Check if this is a leaf node with polygon or page data
+                polygon_fields = ["combined_polygon", "word_polygons", "word_details", "value", "confidence"]
+                page_fields = ["page_number", "pageNumber"]
+                has_polygon = any(field in cu_value for field in polygon_fields[:3])
+                has_page = any(field in cu_value for field in page_fields)
+                
+                if has_polygon or has_page:
+                    # This is a leaf node - copy polygon and page fields from CU
+                    for poly_field in polygon_fields[:3]:
+                        if poly_field in cu_value and poly_field not in merged_value:
+                            merged_value[poly_field] = cu_value[poly_field]
+                    
+                    for page_field in page_fields:
+                        if page_field in cu_value and page_field not in merged_value:
+                            merged_value[page_field] = cu_value[page_field]
+                else:
+                    # This is a nested structure - recurse
+                    _merge_with_polygons(merged_value, cu_value)
+            
+            # Handle list values (e.g., invoice items)
+            elif isinstance(cu_value, list) and isinstance(merged_value, list):
+                for idx, cu_item in enumerate(cu_value):
+                    if idx < len(merged_value):
+                        if isinstance(cu_item, dict) and isinstance(merged_value[idx], dict):
+                            # Check if item has polygon or page data
+                            polygon_fields = ["combined_polygon", "word_polygons", "word_details"]
+                            page_fields = ["page_number", "pageNumber"]
+                            has_polygon = any(field in cu_item for field in polygon_fields)
+                            has_page = any(field in cu_item for field in page_fields)
+                            
+                            if has_polygon or has_page:
+                                # Copy polygon and page fields
+                                for poly_field in polygon_fields:
+                                    if poly_field in cu_item and poly_field not in merged_value[idx]:
+                                        merged_value[idx][poly_field] = cu_item[poly_field]
+                                
+                                for page_field in page_fields:
+                                    if page_field in cu_item and page_field not in merged_value[idx]:
+                                        merged_value[idx][page_field] = cu_item[page_field]
+                            else:
+                                # Recurse into the item
+                                _merge_with_polygons(merged_value[idx], cu_item)
+        
+        return merged
+    
+    # Create a deep copy to avoid modifying originals
+    enriched = copy.deepcopy(merged_conf)
+    enriched = _merge_with_polygons(enriched, cu_confidence)
+    return enriched
+
 def extract_cu_data(cu_client: AzureContentUnderstandingClient):
     """Extract CU data from a document."""
     current_dir = pathlib.Path(__file__).parent.absolute()
@@ -452,17 +538,77 @@ def test_responses_api_direct_call(openai_client: OpenAIClient, cu_client: Azure
         )
         print(f"GPT Confidence Results: {gpt_confidence_results}")
          # Evaluate Confidence Score - Content Understanding
+        # This evaluates confidence and includes page numbers and polygon information from CU
         content_understanding_confidence_score = evaluate_confidence(
             extracted_data,
             cu_extracted_data.result.contents[0],
         )
         
+        # content_understanding_confidence_score now contains:
+        # - Confidence values for each field
+        # - Page numbers where fields were found in the document (from CU)
+        # - Polygon coordinates for visual location of fields (from CU)
+        # - Word details including matched text and confidence scores
+        
+        # Print word polygon information for debugging
+        print("\n" + "="*60)
+        print("WORD-LEVEL POLYGON INFORMATION")
+        print("="*60)
+        
+        def print_polygon_info(data: dict, prefix: str = ""):
+            """Recursively print polygon information for nested structures."""
+            for field, conf_data in data.items():
+                if field == "_overall":
+                    continue
+                
+                if isinstance(conf_data, dict):
+                    if "word_polygons" in conf_data:
+                        # This is a leaf node with polygon data
+                        word_polys = conf_data.get("word_polygons", [])
+                        word_details = conf_data.get("word_details", [])
+                        combined_poly = conf_data.get("combined_polygon")
+                        value = conf_data.get("value", "")
+                        
+                        print(f"\n{prefix}{field}: '{value}'")
+                        print(f"{prefix}  Word polygons: {len(word_polys)} polygon(s)")
+                        
+                        # Show matched words
+                        if word_details:
+                            print(f"{prefix}  Matched words:")
+                            for idx, detail in enumerate(word_details, 1):
+                                content = detail.get("content", "")
+                                conf = detail.get("confidence", 0.0)
+                                print(f"{prefix}    {idx}. '{content}' (confidence: {conf:.4f})")
+                        
+                        if combined_poly:
+                            print(f"{prefix}  Combined polygon: {combined_poly}")
+                    else:
+                        # This is a nested structure
+                        print(f"\n{prefix}{field}:")
+                        print_polygon_info(conf_data, prefix + "  ")
+                elif isinstance(conf_data, list):
+                    # Handle list of items
+                    print(f"\n{prefix}{field} ({len(conf_data)} items):")
+                    for idx, item in enumerate(conf_data, 1):
+                        if isinstance(item, dict):
+                            print(f"{prefix}  Item {idx}:")
+                            print_polygon_info({f"": item}, prefix + "    ")
+        
+        print_polygon_info(content_understanding_confidence_score)
+        
         # Merge the confidence scores - Content Understanding and GPT results.
+        # Ensure polygon data from Content Understanding is preserved in the merged result
         merged_confidence_score = merge_confidence_values(
             content_understanding_confidence_score, gpt_confidence_results
         )
+        
+        # Enhance merged confidence with polygon data and page numbers from content_understanding_confidence_score
+        # Page numbers are extracted from CU data where fields were actually found in the document
+        merged_confidence_score = _enrich_merged_confidence_with_polygons(
+            merged_confidence_score, content_understanding_confidence_score
+        )
 
-        # Flatten extracted data and confidence score
+        # Flatten extracted data and confidence score with polygons
         result_data = get_extraction_comparison_data(
             actual=extracted_data,  # Use extracted_data instead of undefined variable
             confidence=merged_confidence_score,
@@ -483,6 +629,9 @@ def test_responses_api_direct_call(openai_client: OpenAIClient, cu_client: Azure
             completion_tokens = response.usage.get("completion_tokens", 0)
 
         # Put all results in a single object
+        # Note: Page numbers and polygons are already included in comparison_result items
+        # via ExtractionComparisonItem.PageNumber and ExtractionComparisonItem.Polygon
+        # which are extracted from content_understanding_confidence_score
         all_results = DataExtractionResult(
             extracted_result=extracted_data,
             confidence=merged_confidence_score,
