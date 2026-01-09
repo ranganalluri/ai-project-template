@@ -170,3 +170,90 @@ def merge_confidence_values(confidence_a: dict, confidence_b: dict):
         merged_confidence["zero_confidence_fields_count"] = 0
 
     return merged_confidence
+
+
+def enrich_merged_confidence_with_polygons(merged_conf: dict, cu_confidence: dict) -> dict:
+    """Enrich merged confidence score with polygon data and page numbers from Content Understanding.
+    
+    Ensures that polygon information (combined_polygon, word_polygons, word_details)
+    and page numbers from Content Understanding confidence are preserved in the merged result 
+    for all fields including nested fields and list items.
+    
+    Args:
+        merged_conf: The merged confidence dictionary from GPT and CU
+        cu_confidence: The original Content Understanding confidence with polygon data
+        
+    Returns:
+        Enriched merged confidence dictionary with polygon information and page numbers
+    """
+    import copy
+    
+    def _merge_with_polygons(merged: dict, cu: dict) -> dict:
+        """Recursively merge polygon data and page numbers from CU confidence into merged confidence."""
+        for key, cu_value in cu.items():
+            if key == "_overall":
+                continue
+            
+            # Ensure key exists in merged
+            if key not in merged:
+                if isinstance(cu_value, dict):
+                    merged[key] = {}
+                elif isinstance(cu_value, list):
+                    merged[key] = []
+                else:
+                    merged[key] = cu_value
+                    continue
+            
+            merged_value = merged[key]
+            
+            # Handle dictionary values
+            if isinstance(cu_value, dict) and isinstance(merged_value, dict):
+                # Check if this is a leaf node with polygon or page data
+                polygon_fields = ["combined_polygon", "word_polygons", "word_details", "value", "confidence"]
+                page_fields = ["page_number", "pageNumber"]
+                has_polygon = any(field in cu_value for field in polygon_fields[:3])
+                has_page = any(field in cu_value for field in page_fields)
+                
+                if has_polygon or has_page:
+                    # This is a leaf node - copy polygon and page fields from CU
+                    for poly_field in polygon_fields[:3]:
+                        if poly_field in cu_value and poly_field not in merged_value:
+                            merged_value[poly_field] = cu_value[poly_field]
+                    
+                    for page_field in page_fields:
+                        if page_field in cu_value and page_field not in merged_value:
+                            merged_value[page_field] = cu_value[page_field]
+                else:
+                    # This is a nested structure - recurse
+                    _merge_with_polygons(merged_value, cu_value)
+            
+            # Handle list values (e.g., invoice items)
+            elif isinstance(cu_value, list) and isinstance(merged_value, list):
+                for idx, cu_item in enumerate(cu_value):
+                    if idx < len(merged_value):
+                        if isinstance(cu_item, dict) and isinstance(merged_value[idx], dict):
+                            # Check if item has polygon or page data
+                            polygon_fields = ["combined_polygon", "word_polygons", "word_details"]
+                            page_fields = ["page_number", "pageNumber"]
+                            has_polygon = any(field in cu_item for field in polygon_fields)
+                            has_page = any(field in cu_item for field in page_fields)
+                            
+                            if has_polygon or has_page:
+                                # Copy polygon and page fields
+                                for poly_field in polygon_fields:
+                                    if poly_field in cu_item and poly_field not in merged_value[idx]:
+                                        merged_value[idx][poly_field] = cu_item[poly_field]
+                                
+                                for page_field in page_fields:
+                                    if page_field in cu_item and page_field not in merged_value[idx]:
+                                        merged_value[idx][page_field] = cu_item[page_field]
+                            else:
+                                # Recurse into the item
+                                _merge_with_polygons(merged_value[idx], cu_item)
+        
+        return merged
+    
+    # Create a deep copy to avoid modifying originals
+    enriched = copy.deepcopy(merged_conf)
+    enriched = _merge_with_polygons(enriched, cu_confidence)
+    return enriched

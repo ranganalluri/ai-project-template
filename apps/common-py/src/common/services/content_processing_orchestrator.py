@@ -1,17 +1,25 @@
 """Service layer: Pipeline orchestration for document processing."""
 
+import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from common.infra.storage.blob_client import BlobClientWrapper
+from common.models.comparison import get_extraction_comparison_data
 from common.models.document import Cu_Record, DocumentStatus
+from common.models.model import DataExtractionResult
+from common.services.confidence import enrich_merged_confidence_with_polygons, merge_confidence_values
+from common.services.cu.content_understanding_confidence_evaluator import evaluate_confidence
 from common.services.cu_record_store import CuRecordStore
 from common.services.cu.cu_extractor import CuExtractor
 from common.services.evidence.evidence_mapper import EvidenceMapper
 from common.services.image.image_utils import convert_image_metadata_to_content_items
+from common.schemas.invoice_schema import Invoice
+from common.services.openai.confidence_evaluator import OpenAIConfidenceEvaluator
 from common.services.openai.schema_extractor import SchemaExtractor
 from common.services.pdf.pdf_image_converter import PdfImageConverter
-
+from common.models.content_understanding import AnalyzedResult
 logger = logging.getLogger(__name__)
 
 
@@ -121,13 +129,12 @@ class ContentProcessingOrchestrator:
                 cu_raw = self.cu_extractor.extract_to_raw(
                     analyzer_id=analyzer_id, input_blob_url=meta.original_blob_url, source_type=meta.source_type
                 )
-
+            cu_extracted_data = AnalyzedResult(**cu_raw)
+            cu_extracted_content = cu_extracted_data.result.contents[0]
+            
             # Step 4: Store CU raw JSON
             cu_blob_path = f"{tenant_id}/{user_id}/{document_id}/cu/raw.json"
             cu_blob_url = self.blob_client.upload_json(self.content_container, cu_blob_path, cu_raw)
-
-            # Step 5: Normalize CU output
-            cu_normalized = self.cu_extractor.normalize(cu_raw)
 
             # Step 6: Update metadata with CU artifact URL
             self.metadata_store.update_metadata(
@@ -148,61 +155,239 @@ class ContentProcessingOrchestrator:
                 {"status": DocumentStatus.LLM_PROCESSING.value, "updatedAt": datetime.now(UTC)},
             )
 
-            # Step 8: Convert images to base64 content items and call SchemaExtractor
-            image_content_items = None
+            # Step 8: Extract CU markdown and prepare content items following test pattern (test_foundry_responses_api.py:381-397)
+            # Get markdown from CU raw data (test pattern: line 373)
+            cu_markdown = cu_extracted_content.markdown
+            # Convert images to base64 content items
+            image_content_items = []
             if image_metadata:
                 logger.info(f"Converting {len(image_metadata)} images to base64 data URLs for LLM")
                 image_content_items = convert_image_metadata_to_content_items(image_metadata, self.blob_client)
             
-            extracted_schema, evidence_json = self.schema_extractor.extract_schema(
-                cu_normalized=cu_normalized, doc_type=doc_type, image_content_items=image_content_items
+            # Build content_items with markdown and images following test pattern (lines 381-390)
+            content_items: list[dict[str, Any]] = []
+            if cu_markdown:
+                content_items.append({
+                    "type": "input_text",
+                    "text": cu_markdown
+                })
+            if image_content_items:
+                # image_content_items already have the correct format: {"type": "input_image", "image_url": "..."}
+                content_items.extend(image_content_items)
+            
+            # Prepare schema definition following test pattern (test_foundry_responses_api.py:399-400)
+            schema_definition = None
+            if doc_type.lower() == "invoice":
+                schema_definition = {"format": Invoice.get_json_schema_definition()}
+            
+            # Call SchemaExtractor with content_items (markdown + images) and schema definition
+            openai_response = self.schema_extractor.extract_schema(
+                image_content_items=content_items if content_items else None,
+                schema_definition=schema_definition
             )
+            
+            # Step 8.5: Extract and parse the response following test pattern (test_foundry_responses_api.py:412-523)
+            extracted_data = None
+            response_text = ""
+            logprobs_list: list[dict[str, Any]] = []
+            
+            if hasattr(openai_response, "output") and openai_response.output:
+                output = openai_response.output
+                if isinstance(output, list):
+                    for message in output:
+                        if hasattr(message, "content") and message.content:
+                            for content_item in message.content:
+                                # Extract text from content item (test pattern: line 428-429)
+                                if hasattr(content_item, "text"):
+                                    response_text = content_item.text
+                                    if response_text:
+                                        response_text = response_text.strip()
+                                        logger.debug(f"Extracted response text: {len(response_text)} characters")
+                                    
+                                    # Try to parse as JSON (test pattern: line 435-446)
+                                    try:
+                                        # Strip only (test pattern doesn't remove markdown code blocks)
+                                        cleaned_text = response_text.strip()
+                                        extracted_data = json.loads(cleaned_text)
+                                        logger.info("Successfully parsed JSON response")
+                                    except json.JSONDecodeError as e:
+                                        logger.warning(f"Could not parse response as JSON: {e}")
+                                        extracted_data = {}
+                                
+                                # Extract logprobs from content item (test pattern: line 476-503)
+                                if hasattr(content_item, "logprobs") and content_item.logprobs:
+                                    logger.debug("Found logprobs in content item")
+                                    
+                                    # Get logprobs as list - handle different structures
+                                    logprobs_data = content_item.logprobs
+                                    
+                                    # Handle different logprobs structures
+                                    if isinstance(logprobs_data, list):
+                                        logprobs_list = logprobs_data
+                                    elif isinstance(logprobs_data, dict):
+                                        # Check for "content" key
+                                        if "content" in logprobs_data and isinstance(logprobs_data["content"], list):
+                                            logprobs_list = logprobs_data["content"]
+                                        else:
+                                            logprobs_list = []
+                                            logger.warning(f"Unexpected logprobs dict structure: {type(logprobs_data)}")
+                                    else:
+                                        logprobs_list = []
+                                        logger.warning(f"Unexpected logprobs type: {type(logprobs_data)}")
+                                    
+                                    # Ensure logprobs_list is a list
+                                    if not isinstance(logprobs_list, list):
+                                        logprobs_list = []
+                                    
+                                    logger.debug(f"Extracted {len(logprobs_list)} token logprobs from content item")
+            
+            # Check for logprobs at response level (test pattern: line 506-523)
+            if hasattr(openai_response, "logprobs") and openai_response.logprobs:
+                logger.debug("Found logprobs at response level")
+                if not logprobs_list:
+                    logprobs_data = openai_response.logprobs
+                    # Handle different logprobs structures
+                    if isinstance(logprobs_data, list):
+                        logprobs_list = logprobs_data
+                    elif isinstance(logprobs_data, dict):
+                        if "content" in logprobs_data and isinstance(logprobs_data["content"], list):
+                            logprobs_list = logprobs_data["content"]
+                        else:
+                            logprobs_list = []
+                            logger.warning("Unexpected response logprobs dict structure")
+                    else:
+                        logprobs_list = []
+                        logger.warning(f"Unexpected response logprobs type: {type(logprobs_data)}")
+            
+            # Step 8.6: Run OpenAI Confidence Evaluator (test pattern: line 525-538)
+            gpt_confidence_results = {}
+            if extracted_data and logprobs_list and response_text:
+                try:
+                    logger.info("Running OpenAI confidence evaluator")
+                    evaluator = OpenAIConfidenceEvaluator(model=self.schema_extractor.model)
+                    gpt_confidence_results = evaluator.evaluate_confidence(
+                        extract_result=extracted_data,
+                        generated_text=response_text,
+                        logprobs=logprobs_list
+                    )
+                    logger.info("OpenAI confidence evaluation completed")
+                except Exception as e:
+                    logger.warning(f"Failed to run OpenAI confidence evaluator: {e}. Continuing without GPT confidence.")
+            else:
+                logger.warning("Missing logprobs or response_text, skipping OpenAI confidence evaluation")
+            
+            # Step 8.7: Run CU Confidence Evaluator
+            content_understanding_confidence_score = {}
+            if extracted_data:
+                try:
+                    logger.info("Running CU confidence evaluator")
+                    
+                    
+                    content_understanding_confidence_score = evaluate_confidence(
+                        extracted_data,
+                        cu_extracted_content,
+                    )
+                    logger.info("CU confidence evaluation completed")
+                except Exception as e:
+                    logger.warning(f"Failed to run CU confidence evaluator: {e}. Continuing without CU confidence.")
 
-            # Step 9: Map evidence to CU polygons
-            if image_metadata:
-                logger.info(f"Mapping evidence to CU polygons for document {document_id}")
-                extracted_schema = self.evidence_mapper.map_evidence_to_cu_polygons(
-                    extracted_schema=extracted_schema,
-                    cu_normalized=cu_normalized,
-                    image_metadata=image_metadata,
-                )
-                # Update evidence_json with mapped polygons
-                evidence_json = {
-                    "fields": [
-                        {
-                            "fieldPath": field.fieldPath,
-                            "evidence": [
-                                {
-                                    "page": ev.page,
-                                    "polygon": [{"x": p.x, "y": p.y} for p in ev.polygon],
-                                    "sourceText": ev.sourceText,
-                                    "confidence": ev.confidence,
-                                }
-                                for ev in field.evidence
-                            ],
-                        }
-                        for field in extracted_schema.fields
-                    ]
-                }
+            # Step 8.8: Merge Confidence Values
+            merged_confidence_score = {}
+            if gpt_confidence_results or content_understanding_confidence_score:
+                try:
+                    logger.info("Merging confidence values")
+                    if gpt_confidence_results and content_understanding_confidence_score:
+                        merged_confidence_score = merge_confidence_values(
+                            content_understanding_confidence_score,
+                            gpt_confidence_results
+                        )
+                        # Enrich merged confidence with polygon data and page numbers from CU
+                        merged_confidence_score = enrich_merged_confidence_with_polygons(
+                            merged_confidence_score,
+                            content_understanding_confidence_score
+                        )
+                    elif content_understanding_confidence_score:
+                        # Only CU confidence available
+                        merged_confidence_score = content_understanding_confidence_score
+                    elif gpt_confidence_results:
+                        # Only GPT confidence available
+                        merged_confidence_score = gpt_confidence_results
+                    logger.info("Confidence merging completed")
+                except Exception as e:
+                    logger.warning(f"Failed to merge confidence values: {e}. Using available confidence scores.")
+                    merged_confidence_score = content_understanding_confidence_score or gpt_confidence_results or {}
+            
+            # Step 8.9: Create DataExtractionResult
+            extraction_result = None
+            if extracted_data:
+                try:
+                    logger.info("Creating DataExtractionResult")
+                    
+                    # Extract usage information from response if available (test pattern: line 618-629)
+                    prompt_tokens = 0
+                    completion_tokens = 0
+                    if hasattr(openai_response, "usage"):
+                        usage = openai_response.usage
+                        if hasattr(usage, "prompt_tokens"):
+                            prompt_tokens = usage.prompt_tokens or 0
+                        if hasattr(usage, "completion_tokens"):
+                            completion_tokens = usage.completion_tokens or 0
+                    elif hasattr(openai_response, "usage") and isinstance(openai_response.usage, dict):
+                        prompt_tokens = openai_response.usage.get("prompt_tokens", 0)
+                        completion_tokens = openai_response.usage.get("completion_tokens", 0)
+                    
+                    # Create ExtractionComparisonData
+                    # Use default threshold of 0.8 (can be made configurable)
+                    confidence_threshold = 0.8
+                    comparison_result = get_extraction_comparison_data(
+                        actual=extracted_data,
+                        confidence=merged_confidence_score,
+                        threads_hold=confidence_threshold,
+                    )
+                    
+                    # Calculate execution time (could be tracked from start, but for now set to 0)
+                    execution_time = 0
+                    
+                    # Create DataExtractionResult
+                    extraction_result = DataExtractionResult(
+                        extracted_result=extracted_data,
+                        confidence=merged_confidence_score,
+                        comparison_result=comparison_result,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        execution_time=execution_time,
+                    )
+                    logger.info("DataExtractionResult created successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to create DataExtractionResult: {e}. Continuing without final result.")
+            
+            # Step 8.10: Store DataExtractionResult in Blob
+            result_blob_url = None
+            if extraction_result:
+                try:
+                    logger.info("Storing DataExtractionResult in blob storage")
+                    result_blob_path = f"{tenant_id}/{user_id}/{document_id}/result/extraction_result.json"
+                    result_blob_url = self.blob_client.upload_json(
+                        self.content_container,
+                        result_blob_path,
+                        extraction_result.to_dict()
+                    )
+                    logger.info(f"DataExtractionResult stored at: {result_blob_url}")
+                except Exception as e:
+                    logger.warning(f"Failed to store DataExtractionResult in blob: {e}. Continuing without result URL.")
+            
+            
 
-            # Step 10: Store extracted schema and evidence
-            schema_blob_path = f"{tenant_id}/{user_id}/{document_id}/schema/extracted.json"
-            schema_blob_url = self.blob_client.upload_json(
-                self.content_container, schema_blob_path, extracted_schema.model_dump(mode="json")
-            )
-
-            evidence_blob_path = f"{tenant_id}/{user_id}/{document_id}/schema/evidence.json"
-            self.blob_client.upload_json(self.content_container, evidence_blob_path, evidence_json)
-
-            # Step 11: Update metadata and set status DONE
+            # Step 12: Update metadata and set status DONE
+            update_data = {
+                "schemaBlobUrl": result_blob_url,
+                "status": DocumentStatus.DONE.value,
+                "updatedAt": datetime.now(UTC),
+            }
             self.metadata_store.update_metadata(
                 document_id,
                 tenant_id,
-                {
-                    "schemaBlobUrl": schema_blob_url,
-                    "status": DocumentStatus.DONE.value,
-                    "updatedAt": datetime.now(UTC),
-                },
+                update_data,
             )
 
             logger.info(f"Successfully processed document {document_id}")

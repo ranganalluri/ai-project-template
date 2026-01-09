@@ -32,11 +32,9 @@ class SchemaExtractor:
 
     def extract_schema(
         self,
-        cu_normalized: CuNormalizedDocument,
-        doc_type: str,
         image_content_items: list[dict[str, Any]] | None = None,
         schema_definition: dict[str, Any] | None = None,
-    ) -> tuple[ExtractedSchema, dict[str, Any]]:
+    ) -> tuple[ExtractedSchema, dict[str, Any], list[Any] | None, str, Any]:
         """Extract schema from normalized CU document using OpenAI Responses API.
 
         Args:
@@ -48,37 +46,19 @@ class SchemaExtractor:
             schema_definition: Optional JSON schema definition for structured outputs
 
         Returns:
-            Tuple of (ExtractedSchema, evidence_json)
+            Tuple of (ExtractedSchema, evidence_json, logprobs_list, response_text, response)
+            - logprobs_list: List of logprob dictionaries/objects, or None if not available
+            - response_text: Raw response text before JSON parsing
+            - response: Full response object for extracting usage information
         """
         try:
             openai_client = self.client.get_client()
-
-            # Prepare input messages in Responses API format
-            if image_content_items:
-                # Use pre-converted image content items
-                # Responses API expects content array with "input_text" and "input_image" types
-                content_items = [
-                    {
-                        "type": "input_text",
-                        "text": f"Extract structured data from these document pages (type: {doc_type}). For each extracted field, provide the page number and approximate bounding box coordinates where the field appears.",
-                    }
-                ]
-                content_items.extend(image_content_items)
-            else:
-                # Fallback to text representation
-                cu_text = self._cu_to_text(cu_normalized)
-                content_items = [
-                    {
-                        "type": "input_text",
-                        "text": f"Extract structured data from this document (type: {doc_type}).\n\n{cu_text}",
-                    }
-                ]
 
             # Responses API expects messages as a list of message objects with role and content
             messages = [
                 {
                     "role": "user",
-                    "content": content_items,
+                    "content": image_content_items,
                 }
             ]
 
@@ -87,12 +67,8 @@ class SchemaExtractor:
             if schema_definition:
                 # If caller provided a full text.format config, use it directly
                 text_config = schema_definition
-            elif doc_type.lower() == "invoice":
-                # Use Invoice Pydantic model to generate JSON Schema format config
-                text_config = {"format": Invoice.get_json_schema_definition()}
 
             # Call Responses API
-            logger.info("Calling OpenAI Responses API for schema extraction (doc_type: %s)", doc_type)
             try:
                 if text_config is not None:
                     response = openai_client.responses.create(
@@ -100,11 +76,11 @@ class SchemaExtractor:
                         input=messages,
                         store=False,  # Don't store conversation
                         text=text_config,  # ResponseTextConfigParam
-                        top_logprobs=5,
+                        top_logprobs=1,
                         include=["message.output_text.logprobs"],
                     )
                 else:
-                    # No structured output config – just call with basic params
+                    # No structured output config - just call with basic params
                     response = openai_client.responses.create(
                         model=self.model,
                         input=messages,
@@ -114,146 +90,11 @@ class SchemaExtractor:
                 logger.error("OpenAI Responses API call failed: %s", e)
                 raise
 
-            # Extract response text from ResponseOutputMessage objects
-            output_text = ""
-            if hasattr(response, "output") and response.output:
-                output = response.output
-                
-                # Handle ResponseOutputMessage objects (list of messages)
-                if isinstance(output, list):
-                    text_parts = []
-                    for item in output:
-                        # Check if it's a ResponseOutputMessage object
-                        if hasattr(item, "content") and item.content:
-                            for content_item in item.content:
-                                # Check if it's a ResponseOutputText object
-                                if hasattr(content_item, "text"):
-                                    text_parts.append(content_item.text)
-                                elif isinstance(content_item, dict) and "text" in content_item:
-                                    text_parts.append(content_item["text"])
-                    output_text = "".join(text_parts)
-                # Handle dict format
-                elif isinstance(output, dict):
-                    output_text = output.get("text", "")
-                # Handle string format
-                elif isinstance(output, str):
-                    output_text = output
-                # Fallback to string conversion
-                else:
-                    output_text = str(output)
-            
-            # Strip markdown code blocks if present (```json ... ```)
-            if output_text:
-                output_text = output_text.strip()
-                if output_text.startswith("```json"):
-                    output_text = output_text[7:]  # Remove ```json
-                elif output_text.startswith("```"):
-                    output_text = output_text[3:]  # Remove ```
-                if output_text.endswith("```"):
-                    output_text = output_text[:-3]  # Remove closing ```
-                output_text = output_text.strip()
-
-            # Extract log probabilities if available
-            # Note: Responses API may return logprobs automatically in the response object
-            # Check multiple possible locations for logprobs data
-            logprobs_data = None
-            if hasattr(response, "logprobs") and response.logprobs:
-                logprobs_data = response.logprobs
-                logger.debug("Received log probabilities from response.logprobs")
-            elif hasattr(response, "output") and isinstance(response.output, dict):
-                # Check if logprobs are in output metadata
-                if "logprobs" in response.output:
-                    logprobs_data = response.output["logprobs"]
-                    logger.debug("Received log probabilities from response.output.logprobs")
-                elif "metadata" in response.output and isinstance(response.output["metadata"], dict):
-                    if "logprobs" in response.output["metadata"]:
-                        logprobs_data = response.output["metadata"]["logprobs"]
-                        logger.debug("Received log probabilities from response.output.metadata.logprobs")
-            
-            # Log available response attributes for debugging
-            if not logprobs_data:
-                logger.debug("Log probabilities not found in response. Available attributes: %s", dir(response))
-                if hasattr(response, "output") and isinstance(response.output, dict):
-                    logger.debug("Response output keys: %s", list(response.output.keys()))
-
-            # Parse JSON response
-            try:
-                extracted_data = json.loads(output_text) if output_text else {}
-            except json.JSONDecodeError:
-                logger.warning("Failed to parse JSON from response: %s", output_text)
-                extracted_data = {}
-
-            # Calculate average confidence from log probabilities if available
-            avg_confidence = self._calculate_confidence_from_logprobs(logprobs_data) if logprobs_data else None
-            if avg_confidence is not None:
-                logger.info("Calculated average confidence from logprobs: %.3f", avg_confidence)
-
-            # Build ExtractedSchema
-            fields = []
-            evidence_json = {"fields": []}
-
-            if "fields" in extracted_data:
-                for field_data in extracted_data["fields"]:
-                    field_path = field_data.get("fieldPath", "")
-                    value = field_data.get("value")
-                    evidence_spans = []
-
-                    # Extract evidence if present
-                    if "evidence" in field_data:
-                        for ev_data in field_data["evidence"]:
-                            # Use confidence from evidence, or fall back to average logprobs confidence
-                            evidence_confidence = ev_data.get("confidence")
-                            if evidence_confidence is None and avg_confidence is not None:
-                                evidence_confidence = avg_confidence
-                            elif evidence_confidence is None:
-                                evidence_confidence = 0.0
-
-                            evidence_spans.append(
-                                EvidenceSpan(
-                                    page=ev_data.get("page", 1),
-                                    polygon=[
-                                        Point(x=p["x"], y=p["y"]) for p in ev_data.get("polygon", [])
-                                    ],
-                                    sourceText=ev_data.get("sourceText", ""),
-                                    confidence=float(evidence_confidence),
-                                )
-                            )
-
-                    fields.append(
-                        ExtractedField(
-                            fieldPath=field_path,
-                            value=value,
-                            evidence=evidence_spans,
-                        )
-                    )
-
-                    # Add to evidence JSON
-                    evidence_json["fields"].append(
-                        {
-                            "fieldPath": field_path,
-                            "evidence": [
-                                {
-                                    "page": ev.page,
-                                    "polygon": [{"x": p.x, "y": p.y} for p in ev.polygon],
-                                    "sourceText": ev.sourceText,
-                                    "confidence": ev.confidence,
-                                }
-                                for ev in evidence_spans
-                            ],
-                        }
-                    )
-
-            extracted_schema = ExtractedSchema(
-                docType=doc_type,
-                fields=fields,
-                rawModelOutput=extracted_data,
-            )
-
-            logger.info("Extracted schema with %d fields for doc_type %s", len(fields), doc_type)
-            return extracted_schema, evidence_json
+            # Extract response text and logprobs following test pattern (test_foundry_responses_api.py:422-523)
+            return response
 
         except Exception as e:
-            logger.error("Failed to extract schema for doc_type %s: %s", doc_type, e)
+            logger.error("Failed to extract schema: %s", e)
             raise
 
     def _cu_to_text(self, cu_normalized: CuNormalizedDocument) -> str:
@@ -282,6 +123,97 @@ class SchemaExtractor:
                     text_parts.append(cell["content"])
 
         return "\n".join(text_parts)
+
+    def _normalize_logprobs_data(self, logprobs_data: Any) -> list[Any]:
+        """Normalize logprobs data to a list format.
+        
+        Handles different logprobs structures (list, dict with "content" key, etc.)
+        following the pattern from test_responses_api_direct_call().
+        
+        Args:
+            logprobs_data: Logprobs data in various formats
+            
+        Returns:
+            List of logprob dictionaries/objects, or empty list if structure is unexpected
+        """
+        if isinstance(logprobs_data, list):
+            return logprobs_data
+        elif isinstance(logprobs_data, dict):
+            # Check for "content" key
+            if "content" in logprobs_data and isinstance(logprobs_data["content"], list):
+                return logprobs_data["content"]
+            else:
+                logger.warning("Unexpected logprobs dict structure: %s", type(logprobs_data))
+                return []
+        else:
+            logger.warning("Unexpected logprobs type: %s", type(logprobs_data))
+            return []
+
+    def _extract_logprobs_list(self, response: Any) -> list[Any] | None:
+        """Extract logprobs list from OpenAI Responses API response.
+        
+        Follows the pattern from test_responses_api_direct_call() to handle
+        different logprobs structures and locations in the response.
+        
+        Args:
+            response: OpenAI Responses API response object
+            
+        Returns:
+            List of logprob dictionaries/objects, or None if not available
+        """
+        logprobs_list: list[Any] = []
+        logprobs_found = False
+        
+        # First, check content items in output messages
+        if hasattr(response, "output") and response.output:
+            output = response.output
+            if isinstance(output, list):
+                for message in output:
+                    if hasattr(message, "content") and message.content:
+                        for content_item in message.content:
+                            if hasattr(content_item, "logprobs") and content_item.logprobs:
+                                logprobs_found = True
+                                logger.debug("Found logprobs in content item")
+                                
+                                # Get logprobs as list - handle different structures
+                                logprobs_data = content_item.logprobs
+                                logprobs_list = self._normalize_logprobs_data(logprobs_data)
+                                
+                                # Ensure logprobs_list is a list
+                                if not isinstance(logprobs_list, list):
+                                    logprobs_list = []
+                                
+                                logger.debug("Extracted %d token logprobs from content item", len(logprobs_list))
+                                break
+                        if logprobs_found:
+                            break
+        
+        # Check for logprobs at response level if not found in content items
+        if not logprobs_found and hasattr(response, "logprobs") and response.logprobs:
+            logprobs_found = True
+            logger.debug("Found logprobs at response level")
+            logprobs_data = response.logprobs
+            logprobs_list = self._normalize_logprobs_data(logprobs_data)
+        
+        # Also check response.output if it's a dict (fallback)
+        if not logprobs_found and hasattr(response, "output") and isinstance(response.output, dict):
+            if "logprobs" in response.output:
+                logprobs_data = response.output["logprobs"]
+                logger.debug("Found logprobs in response.output.logprobs")
+                logprobs_list = self._normalize_logprobs_data(logprobs_data)
+            elif "metadata" in response.output and isinstance(response.output["metadata"], dict):
+                if "logprobs" in response.output["metadata"]:
+                    logprobs_data = response.output["metadata"]["logprobs"]
+                    logger.debug("Found logprobs in response.output.metadata.logprobs")
+                    logprobs_list = self._normalize_logprobs_data(logprobs_data)
+        
+        if not logprobs_list:
+            logger.debug("Log probabilities not found in response. Available attributes: %s", dir(response))
+            if hasattr(response, "output") and isinstance(response.output, dict):
+                logger.debug("Response output keys: %s", list(response.output.keys()))
+            return None
+        
+        return logprobs_list
 
     def _calculate_confidence_from_logprobs(self, logprobs: Any) -> float | None:
         """Calculate average confidence score from log probabilities.
