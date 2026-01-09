@@ -7,7 +7,7 @@ from typing import Any
 
 from common.infra.storage.blob_client import BlobClientWrapper
 from common.models.comparison import get_extraction_comparison_data
-from common.models.document import Cu_Record, DocumentStatus
+from common.models.document import Cu_Record, DocumentStatus, ExtractedSchema, ExtractedField, EvidenceSpan, Point
 from common.models.model import DataExtractionResult
 from common.services.confidence import enrich_merged_confidence_with_polygons, merge_confidence_values
 from common.services.cu.content_understanding_confidence_evaluator import evaluate_confidence
@@ -34,7 +34,6 @@ class ContentProcessingOrchestrator:
         schema_extractor: SchemaExtractor | None = None,
         pdf_converter: PdfImageConverter | None = None,
         evidence_mapper: EvidenceMapper | None = None,
-        content_container: str = "content",
     ) -> None:
         """Initialize pipeline orchestrator.
 
@@ -45,7 +44,6 @@ class ContentProcessingOrchestrator:
             schema_extractor: Schema extractor. If None, creates a new one.
             pdf_converter: PDF image converter. If None, creates a new one.
             evidence_mapper: Evidence mapper. If None, creates a new one.
-            content_container: Container name for content storage (default: "content")
         """
         self.blob_client = blob_client or BlobClientWrapper()
         self.metadata_store = metadata_store or CuRecordStore()
@@ -53,7 +51,6 @@ class ContentProcessingOrchestrator:
         self.schema_extractor = schema_extractor or SchemaExtractor()
         self.pdf_converter = pdf_converter or PdfImageConverter(blob_client=self.blob_client)
         self.evidence_mapper = evidence_mapper or EvidenceMapper()
-        self.content_container = content_container
 
     def process_document(
         self, meta: Cu_Record, filename: str, analyzer_id: str, doc_type: str, force: bool = False
@@ -134,7 +131,7 @@ class ContentProcessingOrchestrator:
             
             # Step 4: Store CU raw JSON
             cu_blob_path = f"{tenant_id}/{user_id}/{document_id}/cu/raw.json"
-            cu_blob_url = self.blob_client.upload_json(self.content_container, cu_blob_path, cu_raw)
+            cu_blob_url = self.blob_client.upload_json("content", cu_blob_path, cu_raw)
 
             # Step 6: Update metadata with CU artifact URL
             self.metadata_store.update_metadata(
@@ -361,14 +358,68 @@ class ContentProcessingOrchestrator:
                 except Exception as e:
                     logger.warning(f"Failed to create DataExtractionResult: {e}. Continuing without final result.")
             
-            # Step 8.10: Store DataExtractionResult in Blob
+            # Step 8.10: Store ExtractedSchema in Blob (for API to retrieve evidence/fields)
+            schema_blob_url = None
+            if extracted_data:
+                try:
+                    logger.info("Creating and storing ExtractedSchema")
+                    # Create ExtractedSchema from extracted_data
+                    # The extracted_data should have a "fields" array with fieldPath, value, and evidence
+                    fields_list = []
+                    if "fields" in extracted_data and isinstance(extracted_data["fields"], list):
+                        for field_data in extracted_data["fields"]:
+                            field_path = field_data.get("fieldPath", "")
+                            value = field_data.get("value")
+                            evidence_spans = []
+                            if "evidence" in field_data and isinstance(field_data["evidence"], list):
+                                for ev_data in field_data["evidence"]:
+                                    evidence_confidence = ev_data.get("confidence", 0.0)
+                                    polygon_points = []
+                                    if "polygon" in ev_data and isinstance(ev_data["polygon"], list):
+                                        for p in ev_data["polygon"]:
+                                            if isinstance(p, dict) and "x" in p and "y" in p:
+                                                polygon_points.append(Point(x=p["x"], y=p["y"]))
+                                    evidence_spans.append(
+                                        EvidenceSpan(
+                                            page=ev_data.get("page", 1),
+                                            polygon=polygon_points,
+                                            sourceText=ev_data.get("sourceText", ""),
+                                            confidence=float(evidence_confidence),
+                                        )
+                                    )
+                            fields_list.append(
+                                ExtractedField(
+                                    fieldPath=field_path,
+                                    value=value,
+                                    evidence=evidence_spans,
+                                )
+                            )
+                    
+                    extracted_schema = ExtractedSchema(
+                        docType=doc_type,
+                        fields=fields_list,
+                        rawModelOutput=extracted_data,
+                    )
+                    
+                    # Store ExtractedSchema in blob
+                    schema_blob_path = f"{tenant_id}/{user_id}/{document_id}/schema/extracted.json"
+                    schema_blob_url = self.blob_client.upload_json(
+                        "content",
+                        schema_blob_path,
+                        extracted_schema.model_dump(mode="json")
+                    )
+                    logger.info(f"ExtractedSchema stored at: {schema_blob_url}")
+                except Exception as e:
+                    logger.warning(f"Failed to store ExtractedSchema: {e}. Continuing without schema URL.")
+            
+            # Step 8.11: Store DataExtractionResult in Blob
             result_blob_url = None
             if extraction_result:
                 try:
                     logger.info("Storing DataExtractionResult in blob storage")
                     result_blob_path = f"{tenant_id}/{user_id}/{document_id}/result/extraction_result.json"
                     result_blob_url = self.blob_client.upload_json(
-                        self.content_container,
+                        "content",
                         result_blob_path,
                         extraction_result.to_dict()
                     )
@@ -379,8 +430,11 @@ class ContentProcessingOrchestrator:
             
 
             # Step 12: Update metadata and set status DONE
+            # Save schemaBlobUrl with ExtractedSchema URL (for API to retrieve evidence/fields)
+            # Save evidenceUrl with DataExtractionResult URL (extraction_result.json)
             update_data = {
-                "schemaBlobUrl": result_blob_url,
+                "schemaBlobUrl": schema_blob_url,  # ExtractedSchema URL
+                "evidenceUrl": result_blob_url,  # DataExtractionResult URL (extraction_result.json)
                 "status": DocumentStatus.DONE.value,
                 "updatedAt": datetime.now(UTC),
             }

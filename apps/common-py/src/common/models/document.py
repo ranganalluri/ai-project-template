@@ -41,6 +41,9 @@ class Cu_Record(BaseModel):
     schema_blob_url: str | None = Field(
         None, alias="schemaBlobUrl", description="URL to extracted schema JSON in blob storage"
     )
+    evidence_url: str | None = Field(
+        None, alias="evidenceUrl", description="URL to extraction result JSON (DataExtractionResult) in blob storage"
+    )
     image_blob_urls: list[str] | None = Field(
         None, alias="imageBlobUrls", description="URLs to page images in blob storage"
     )

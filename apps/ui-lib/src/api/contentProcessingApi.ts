@@ -20,11 +20,11 @@ export interface PageDimension {
 export type { FieldEvidence } from '../utils/pdfCoordinates';
 
 export interface ContentProcessingResponse {
-  documentId: string;
+  document_id: string;
   status: string;
-  originalBlobUrl?: string | null;
-  schemaBlobUrl?: string | null;
-  imageBlobUrls?: string[] | null;
+  original_blob_url?: string | null;
+  schema_blob_url?: string | null;
+  image_blob_urls?: string[] | null;
   evidence?: {
     fields: Array<{
       fieldPath: string;
@@ -36,7 +36,7 @@ export interface ContentProcessingResponse {
       }>;
     }>;
   } | null;
-  pageDimensions?: PageDimension[] | null;
+  page_dimensions?: PageDimension[] | null;
   error?: Record<string, unknown> | null;
 }
 

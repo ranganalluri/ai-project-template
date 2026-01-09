@@ -4,6 +4,7 @@ import {
   getProcessingStatus,
   type ContentProcessingResponse,
   type FieldEvidence,
+  getApiUrl,
 } from '@agentic/ui-lib';
 import { Button, PDFViewer, FieldDetailsPanel, FieldsListPanel } from '@agentic/ui-lib';
 import '@/pages/Chat.css';
@@ -78,11 +79,15 @@ export const ContentProcessing: React.FC = () => {
       setResult(response);
       setUploading(false);
 
+      // Get document_id from the response (API returns snake_case)
+      const documentId = response.document_id;
+
       // If processing is in progress, poll for status
       if (response.status === 'CU_PROCESSING' || response.status === 'LLM_PROCESSING') {
         const interval = window.setInterval(async () => {
           try {
-            const statusResponse = await getProcessingStatus(response.documentId, 'default');
+            // Use documentId from the initial response
+            const statusResponse = await getProcessingStatus(documentId, 'default');
             setResult(statusResponse);
 
             // Stop polling if processing is complete or failed
@@ -90,6 +95,12 @@ export const ContentProcessing: React.FC = () => {
               window.clearInterval(interval);
               setStatusCheckInterval(null);
               setProcessing(false);
+              
+              // If processing is done, fetch full result and schema from FastAPI using documentId
+              if (statusResponse.status === 'DONE') {
+                console.log('Processing complete, calling fetchFullResultAndSchema for document:', documentId);
+                fetchFullResultAndSchema(documentId);
+              }
             }
           } catch (err) {
             console.error('Error checking status:', err);
@@ -100,6 +111,11 @@ export const ContentProcessing: React.FC = () => {
         }, 2000); // Poll every 2 seconds
 
         setStatusCheckInterval(interval);
+      } else if (response.status === 'DONE') {
+        // If already done, fetch full result immediately from FastAPI using documentId from response
+        setProcessing(false);
+        console.log('Processing already complete, calling fetchFullResultAndSchema for document:', documentId);
+        fetchFullResultAndSchema(documentId);
       } else {
         setProcessing(false);
       }
@@ -172,47 +188,87 @@ export const ContentProcessing: React.FC = () => {
     }
   };
 
-  // Fetch schema data
+  // Fetch full processing result when status is DONE
+  const [fullResult, setFullResult] = useState<ContentProcessingResponse | null>(null);
   const [schemaData, setSchemaData] = useState<any>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [fetchedDocumentId, setFetchedDocumentId] = useState<string | null>(null);
+  const [testDocumentId, setTestDocumentId] = useState<string>('386030d3-7294-49c8-963a-11285ef13c41');
 
-  React.useEffect(() => {
-    if (result?.status === 'DONE' && result.schemaBlobUrl) {
-      fetch(result.schemaBlobUrl)
-        .then((response) => response.json())
-        .then((data) => setSchemaData(data))
-        .catch((err) => console.error('Failed to fetch schema:', err));
-    } else {
-      setSchemaData(null);
+  // Function to fetch full result and extracted fields from FastAPI GET endpoint
+  const fetchFullResultAndSchema = useCallback(async (documentId: string) => {
+    // Prevent duplicate fetches for the same document
+    if (fetchedDocumentId === documentId) {
+      console.log(`Skipping duplicate fetch for document ${documentId}`);
+      return;
     }
-  }, [result?.schemaBlobUrl, result?.status]);
 
-  // Helper function to get value by field path
-  const getValueByPath = (obj: any, path: string): any => {
-    const parts = path.split('.');
-    let current = obj;
-    for (const part of parts) {
-      if (current && typeof current === 'object' && part in current) {
-        current = current[part];
+    console.log(`Fetching full result and extracted fields for document ${documentId} from FastAPI...`);
+    setSchemaLoading(true);
+    setSchemaError(null);
+    setFetchedDocumentId(documentId);
+    
+    try {
+      // Call GET /v1/content-processing/{document_id} to get full response with evidence
+      console.log(`Calling getProcessingStatus API for document ${documentId}`);
+      const apiResponse = await getProcessingStatus(documentId, 'default');
+      console.log('Received API response:', apiResponse);
+      setFullResult(apiResponse);
+      
+      // Also set result state so PDF URL calculation works (uses FastAPI endpoint)
+      setResult(apiResponse);
+      
+      // Use evidence from API response directly (contains extracted fields with polygons)
+      if (apiResponse.evidence) {
+        console.log('Using evidence from API response:', apiResponse.evidence);
+        // Store evidence as schemaData for compatibility with existing field transformation logic
+        setSchemaData(apiResponse.evidence);
+      } else if (apiResponse.schema_blob_url) {
+        // Fallback: fetch schema from blob URL if evidence is not available
+        console.log(`Evidence not available, fetching schema from blob URL: ${apiResponse.schema_blob_url}`);
+        const schemaResponse = await fetch(apiResponse.schema_blob_url);
+        if (!schemaResponse.ok) {
+          throw new Error(`Failed to fetch schema: ${schemaResponse.status} ${schemaResponse.statusText}`);
+        }
+        const schema = await schemaResponse.json();
+        console.log('Schema data loaded from blob:', schema);
+        setSchemaData(schema);
       } else {
-        return undefined;
+        console.warn('No evidence or schema_blob_url in API response');
+        setSchemaData(null);
       }
+      setSchemaLoading(false);
+    } catch (err) {
+      console.error('Failed to fetch processing result or extracted fields:', err);
+      setSchemaError(err instanceof Error ? err.message : 'Failed to fetch processing result');
+      setSchemaLoading(false);
     }
-    return current;
-  };
+  }, [fetchedDocumentId]);
 
+  // When processing is successful, fetch full result from API
+  React.useEffect(() => {
+    const documentId = result?.document_id;
+    if (result?.status === 'DONE' && documentId && fetchedDocumentId !== documentId) {
+      fetchFullResultAndSchema(documentId);
+    } else if (result?.status !== 'DONE') {
+      // Reset when status changes away from DONE
+      setFullResult(null);
+      setSchemaData(null);
+      setSchemaLoading(false);
+      setSchemaError(null);
+      setFetchedDocumentId(null);
+    }
+  }, [result?.status, result?.document_id, fetchFullResultAndSchema, fetchedDocumentId]);
 
-  // Transform evidence from API to FieldEvidence format
+  // Transform extracted fields from schema to FieldEvidence format
   const fields: FieldEvidence[] = useMemo(() => {
-    if (!result?.evidence?.fields) {
+    // Read fields from schemaData (ExtractedSchema structure)
+    if (!schemaData?.fields || !Array.isArray(schemaData.fields)) {
       return [];
     }
 
-    if (!Array.isArray(result.evidence.fields)) {
-      console.warn('Evidence fields is not an array:', result.evidence.fields);
-      return [];
-    }
-
-    return result.evidence.fields
+    return schemaData.fields
       .filter((field: any) => {
         // Validate field structure
         if (!field || typeof field !== 'object') {
@@ -229,10 +285,16 @@ export const ContentProcessing: React.FC = () => {
         }
         return true;
       })
-      .map((field: { fieldPath: string; evidence: Array<{ page: number; polygon: Array<{ x: number; y: number }>; sourceText: string; confidence: number }> }) => {
-        // Get value from schema if available
-        const value = schemaData ? getValueByPath(schemaData, field.fieldPath) : null;
-        
+      .map((field: { 
+        fieldPath: string; 
+        value: any;
+        evidence: Array<{ 
+          page: number; 
+          polygon: Array<{ x: number; y: number }>; 
+          sourceText: string; 
+          confidence: number;
+        }> 
+      }) => {
         // Validate and transform evidence
         const validEvidence = field.evidence
           .filter((ev: any) => {
@@ -249,14 +311,28 @@ export const ContentProcessing: React.FC = () => {
               console.warn(`Invalid confidence for field ${field.fieldPath}:`, ev.confidence);
               return false;
             }
-            // Validate polygon if present
-            if (ev.polygon && (!Array.isArray(ev.polygon) || ev.polygon.length < 3)) {
-              console.warn(`Invalid polygon for field ${field.fieldPath}:`, ev.polygon);
-              return false;
+            // Validate polygon if present (polygon is optional, but if present must be valid)
+            if (ev.polygon !== undefined && ev.polygon !== null) {
+              if (!Array.isArray(ev.polygon)) {
+                console.warn(`Invalid polygon type for field ${field.fieldPath}:`, ev.polygon);
+                return false;
+              }
+              // Allow empty polygons - they're optional
+              // Only validate structure if polygon has points
+              if (ev.polygon.length > 0 && ev.polygon.length < 3) {
+                console.warn(`Invalid polygon (needs at least 3 points) for field ${field.fieldPath}:`, ev.polygon);
+                return false;
+              }
             }
+            // Allow evidence entries even without polygons if they have other valid data
             return true;
           })
-          .map((ev: { page: number; polygon: Array<{ x: number; y: number }>; sourceText: string; confidence: number }) => ({
+          .map((ev: { 
+            page: number; 
+            polygon: Array<{ x: number; y: number }>; 
+            sourceText: string; 
+            confidence: number;
+          }) => ({
             page: ev.page,
             polygon: ev.polygon || [],
             sourceText: ev.sourceText || '',
@@ -270,121 +346,35 @@ export const ContentProcessing: React.FC = () => {
         
         return {
           fieldPath: field.fieldPath,
-          value: value !== undefined ? value : null,
+          value: field.value !== undefined ? field.value : null,
           confidence: avgConfidence,
           evidence: validEvidence,
         };
       })
       .filter((field: FieldEvidence) => field.evidence.length > 0); // Only include fields with valid evidence
-  }, [result?.evidence, schemaData]);
+  }, [schemaData]);
 
-  // Determine PDF URL: prefer blob URL if available, fall back to local file URL
+  // Determine PDF URL: use FastAPI endpoint to serve PDF, fall back to local file URL
   const pdfUrl = useMemo(() => {
-    if (result?.originalBlobUrl) {
-      return result.originalBlobUrl;
+    // Use FastAPI endpoint to serve PDF instead of direct blob URL
+    // This avoids CORS/authentication issues with blob storage
+    const documentId = fullResult?.document_id || result?.document_id;
+    if (documentId) {
+      // Use FastAPI endpoint: /v1/content-processing/{document_id}/original
+      const apiUrl = getApiUrl();
+      return `${apiUrl}/v1/content-processing/${documentId}/original?tenant_id=default`;
     }
+    // Fall back to local file URL if document hasn't been processed yet
     if (file?.type === 'application/pdf' && localPdfUrl) {
       return localPdfUrl;
     }
     return null;
-  }, [result?.originalBlobUrl, file, localPdfUrl]);
+  }, [fullResult?.document_id, result?.document_id, file, localPdfUrl]);
 
-  // Check if we should show the PDF viewer (PDF file selected or uploaded)
-  const shouldShowPdfViewer = file?.type === 'application/pdf' && pdfUrl !== null;
+  // Check if we should show the PDF viewer (PDF file selected/uploaded OR document loaded by ID)
+  const shouldShowPdfViewer = (file?.type === 'application/pdf' && pdfUrl !== null) || 
+                               (pdfUrl !== null && (fullResult?.document_id || result?.document_id));
 
-  // Generate dummy fields for testing (when no real fields available)
-  const dummyFields: FieldEvidence[] = useMemo(() => {
-    // Only generate if we have a PDF but no real fields
-    if (shouldShowPdfViewer && (!result || result.status !== 'DONE' || !result.evidence?.fields || result.evidence.fields.length === 0)) {
-      // Create dummy fields with various confidence levels and shapes
-      // Using standard US Letter size (612x792 points) for coordinates
-      return [
-        {
-          fieldPath: 'invoice.total',
-          value: '$1,234.56',
-          confidence: 0.95,
-          evidence: [
-            {
-              page: 1,
-              polygon: [
-                { x: 450, y: 100 },
-                { x: 580, y: 100 },
-                { x: 580, y: 130 },
-                { x: 450, y: 130 },
-              ],
-              sourceText: '$1,234.56',
-              confidence: 0.95,
-            },
-          ],
-        },
-        {
-          fieldPath: 'invoice.date',
-          value: '2024-01-15',
-          confidence: 0.85,
-          evidence: [
-            {
-              page: 1,
-              polygon: [], // Empty polygon when using boundingBox
-              boundingBox: { x: 50, y: 100, width: 150, height: 30 },
-              sourceText: '2024-01-15',
-              confidence: 0.85,
-            },
-          ],
-        },
-        {
-          fieldPath: 'invoice.vendor',
-          value: 'Acme Corporation',
-          confidence: 0.75,
-          evidence: [
-            {
-              page: 1,
-              polygon: [
-                { x: 50, y: 50 },
-                { x: 300, y: 50 },
-                { x: 300, y: 80 },
-                { x: 50, y: 80 },
-              ],
-              sourceText: 'Acme Corporation',
-              confidence: 0.75,
-            },
-          ],
-        },
-        {
-          fieldPath: 'invoice.lineItems',
-          value: 'Multiple items',
-          confidence: 0.65,
-          evidence: [
-            {
-              page: 1,
-              polygon: [], // Empty polygon when using boundingBox
-              boundingBox: { x: 50, y: 200, width: 500, height: 200 },
-              sourceText: 'Item 1, Item 2, Item 3',
-              confidence: 0.65,
-            },
-          ],
-        },
-        {
-          fieldPath: 'invoice.invoiceNumber',
-          value: 'INV-2024-001',
-          confidence: 0.55,
-          evidence: [
-            {
-              page: 1,
-              polygon: [
-                { x: 400, y: 50 },
-                { x: 550, y: 50 },
-                { x: 550, y: 75 },
-                { x: 400, y: 75 },
-              ],
-              sourceText: 'INV-2024-001',
-              confidence: 0.55,
-            },
-          ],
-        },
-      ];
-    }
-    return [];
-  }, [shouldShowPdfViewer, result]);
 
   return (
     <div className="flex flex-col h-full p-6">
@@ -396,6 +386,35 @@ export const ContentProcessing: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 mb-6">
+        {/* Quick test: Load specific document ID */}
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+          <label htmlFor="test-document-id" className="block text-sm font-medium text-gray-700 mb-2">
+            Quick Test: Load Document by ID
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="test-document-id"
+              type="text"
+              value={testDocumentId}
+              onChange={(e) => setTestDocumentId(e.target.value)}
+              placeholder="Enter document ID"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+            />
+            <Button
+              onClick={() => {
+                if (testDocumentId) {
+                  setFetchedDocumentId(null); // Reset to allow fetching
+                  fetchFullResultAndSchema(testDocumentId);
+                }
+              }}
+              disabled={!testDocumentId || schemaLoading}
+              className="px-4"
+            >
+              Load Document
+            </Button>
+          </div>
+        </div>
+
         <div className="mb-4">
           <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 mb-2">
             Select File (PDF, Image, or Audio)
@@ -434,56 +453,57 @@ export const ContentProcessing: React.FC = () => {
         )}
       </div>
 
-      {result && (
+      {(fullResult || result) && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">Processing Results</h2>
           
           <div className="space-y-4">
             <div>
               <p className="text-sm text-gray-600">Document ID</p>
-              <p className="font-mono text-sm">{result.documentId}</p>
+              <p className="font-mono text-sm">{fullResult?.document_id || result?.document_id}</p>
             </div>
 
             <div>
               <p className="text-sm text-gray-600">Status</p>
-              <p className={`font-semibold ${getStatusColor(result.status)}`}>
-                {getStatusLabel(result.status)}
+              <p className={`font-semibold ${getStatusColor(fullResult?.status || result?.status || '')}`}>
+                {getStatusLabel(fullResult?.status || result?.status || '')}
               </p>
             </div>
 
-            {result.originalBlobUrl && (
+            {(fullResult?.original_blob_url || result?.original_blob_url) && (
               <div>
                 <p className="text-sm text-gray-600">Original File</p>
                 <a
-                  href={result.originalBlobUrl}
+                  href={fullResult?.original_blob_url || result?.original_blob_url || ''}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline text-sm break-all"
                 >
-                  {result.originalBlobUrl}
+                  {fullResult?.original_blob_url || result?.original_blob_url}
                 </a>
               </div>
             )}
 
-            {result.schemaBlobUrl && (
+            {(fullResult?.schema_blob_url || result?.schema_blob_url) && (
               <div>
                 <p className="text-sm text-gray-600">Extracted Schema</p>
                 <a
-                  href={result.schemaBlobUrl}
+                  href={fullResult?.schema_blob_url || result?.schema_blob_url || ''}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline text-sm break-all"
                 >
-                  {result.schemaBlobUrl}
+                  {fullResult?.schema_blob_url || result?.schema_blob_url}
                 </a>
               </div>
             )}
 
-            {result.imageBlobUrls && result.imageBlobUrls.length > 0 && (
+            {((fullResult?.image_blob_urls && fullResult.image_blob_urls.length > 0) || 
+              (result?.image_blob_urls && result.image_blob_urls.length > 0)) && (
               <div>
-                <p className="text-sm text-gray-600">Page Images ({result.imageBlobUrls.length})</p>
+                <p className="text-sm text-gray-600">Page Images ({(fullResult?.image_blob_urls || result?.image_blob_urls || []).length})</p>
                 <div className="mt-2 space-y-1">
-                  {result.imageBlobUrls.map((url, index) => (
+                  {(fullResult?.image_blob_urls || result?.image_blob_urls || []).map((url, index) => (
                     <a
                       key={index}
                       href={url}
@@ -498,11 +518,11 @@ export const ContentProcessing: React.FC = () => {
               </div>
             )}
 
-            {result.error && (
+            {(fullResult?.error || result?.error) && (
               <div className="p-3 bg-red-50 border border-red-200 rounded">
                 <p className="text-sm font-semibold text-red-700 mb-1">Error</p>
                 <pre className="text-xs text-red-600 whitespace-pre-wrap">
-                  {JSON.stringify(result.error, null, 2)}
+                  {JSON.stringify(fullResult?.error || result?.error, null, 2)}
                 </pre>
               </div>
             )}
@@ -519,12 +539,27 @@ export const ContentProcessing: React.FC = () => {
               Processing document... Field highlights will appear when processing completes.
             </div>
           )}
-          {result?.status === 'DONE' && fields.length === 0 && (
+          {schemaLoading && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
+              Loading extracted fields from schema...
+            </div>
+          )}
+          {schemaError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+              Failed to load schema: {schemaError}
+            </div>
+          )}
+          {result?.status === 'DONE' && !schemaLoading && !schemaError && fields.length === 0 && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-700 text-sm">
               No extracted fields found. The document may not contain extractable data, or processing may not have completed successfully.
             </div>
           )}
-          {result?.status === 'DONE' && !result.pageDimensions && (
+          {result?.status === 'DONE' && !schemaLoading && !schemaError && fields.length > 0 && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
+              Found {fields.length} extracted field{fields.length !== 1 ? 's' : ''} with evidence.
+            </div>
+          )}
+          {result?.status === 'DONE' && !fullResult?.page_dimensions && !result?.page_dimensions && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-700 text-sm">
               Warning: Page dimensions not available. Field highlights may not align correctly. Using default dimensions.
             </div>
@@ -535,8 +570,8 @@ export const ContentProcessing: React.FC = () => {
               {pdfUrl ? (
                 <PDFViewer
                   pdfUrl={pdfUrl}
-                  fields={result?.status === 'DONE' ? fields : dummyFields}
-                  pageDimensions={result?.pageDimensions || [{ page: 1, width: 612, height: 792 }]}
+                  fields={fields}
+                  pageDimensions={fullResult?.page_dimensions || result?.page_dimensions || [{ page: 1, width: 612, height: 792 }]}
                   selectedField={selectedField}
                   onFieldSelect={setSelectedField}
                 />
@@ -549,7 +584,7 @@ export const ContentProcessing: React.FC = () => {
             {/* Fields List Panel - 30% width */}
             <div className="fields-panel-section">
               <FieldsListPanel
-                fields={result?.status === 'DONE' ? fields : dummyFields}
+                fields={fields}
                 selectedField={selectedField}
                 onFieldSelect={setSelectedField}
               />
