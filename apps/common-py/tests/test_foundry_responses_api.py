@@ -27,6 +27,8 @@ from common.services.cu.content_understanding_confidence_evaluator import evalua
 from common.services.confidence import merge_confidence_values
 from common.models.comparison import get_extraction_comparison_data
 from common.models.model import DataExtractionResult
+from common.services.cu.extract_chunks import extract_chunks
+from common.services.vector_store.vector_client import InlineVectorStore
 # Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration
 
@@ -405,8 +407,8 @@ def test_responses_api_direct_call(openai_client: OpenAIClient, cu_client: Azure
         input=messages,
         store=False,
         text=schema_definition,
-        top_logprobs=1,
-        include=["message.output_text.logprobs"],
+        # top_logprobs=1,
+        # include=["message.output_text.logprobs"],
     )
     
     # Verify response
@@ -685,3 +687,32 @@ def test_responses_api_direct_call(openai_client: OpenAIClient, cu_client: Azure
         print("\n⚠️  Warning: Logprobs not found in response. Check include parameter and API version.")
     else:
         print("\n✅ Logprobs successfully retrieved and processed!")
+
+@pytest.mark.slow
+def test_responses_api_direct_call_with_image(openai_client: OpenAIClient, cu_client: AzureContentUnderstandingClient):
+    """Test direct Responses API call with image and schema extraction.
+    
+    This test demonstrates:
+    - Extracting logprobs for each token
+    - Calculating confidence for extracted field values
+    - Handling duplicate items (e.g., "Software License" appearing multiple times)
+    """
+    from common.services.cu.word_index import build_word_index
+    client = openai_client.get_client()
+    config = openai_client.config
+    cu_extracted_data, file_bytes = extract_cu_data(cu_client)
+    
+    word_index = build_word_index(cu_extracted_data)
+    
+    cu_markdown = cu_extracted_data.result.contents[0].markdown or ""
+    chunks = extract_chunks(cu_extracted_data, cu_markdown)
+    vector_store = InlineVectorStore(openai_client)
+    vector_store.add_chunks(chunks)
+    search_results = vector_store.search("find total amount for invoice", top_k=5)
+    search_results = vector_store.search("find total amount due for invoice", top_k=5)
+    search_results = vector_store.search("find customer address for invoice", top_k=5)
+    print(f"Search results: {search_results}")
+    assert len(search_results) > 0
+    assert search_results[0][1] > 0.5
+    
+                

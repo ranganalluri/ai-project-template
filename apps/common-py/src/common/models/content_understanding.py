@@ -69,6 +69,7 @@ class Line(BaseModel):
 
 
 class Paragraph(BaseModel):
+    span_number: Optional[int] = None
     content: str
     source: str
     span: Span
@@ -99,7 +100,7 @@ class Page(BaseModel):
     spans: List[Span]
     words: List[Word]
     lines: Optional[List[Line]] = []
-    paragraphs: Optional[List[Paragraph]] = []
+    
 
 
 class DocumentContent(BaseModel):
@@ -109,6 +110,7 @@ class DocumentContent(BaseModel):
     endPageNumber: int
     unit: str
     pages: List[Page]
+    paragraphs: list[Paragraph] = []
 
 
 class ResultData(BaseModel):
