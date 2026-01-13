@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@agentic/ui-lib';
 import { useGetApi, usePostApi } from '@/hooks/useApi';
-import { User } from '@agentic/ui-lib';
 
 interface UserListResponse {
   users: Array<{
