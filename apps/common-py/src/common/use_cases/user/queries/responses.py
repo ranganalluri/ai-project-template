@@ -1,61 +1,8 @@
-"""User query DTOs for read operations."""
+"""Response DTOs for user queries."""
 
-from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, Field, EmailStr
-from common.dtos.base import BaseQuery, BaseResponse
-
-
-class GetUserQuery(BaseQuery):
-    """Query to get a user by ID."""
-
-    user_id: str = Field(..., description="Unique identifier for the user")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "userId": "user-123abc",
-            }
-        }
-    }
-
-
-class ListUsersQuery(BaseQuery):
-    """Query to list users with optional pagination."""
-
-    page: int = Field(1, ge=1, description="Page number (1-indexed)")
-    page_size: int = Field(20, ge=1, le=100, description="Number of users per page")
-    sort_by: str | None = Field(None, description="Field to sort by (e.g., 'createdAt', 'lastName')")
-    sort_order: Literal["asc", "desc"] = Field("desc", description="Sort order")
-    
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "page": 1,
-                "pageSize": 20,
-                "sortBy": "createdAt",
-                "sortOrder": "desc"
-            }
-        }
-    }
-
-
-class SearchUsersQuery(BaseQuery):
-    """Query to search users by name."""
-
-    search_term: str = Field(..., min_length=1, max_length=200, description="Search term for name matching")
-    page: int = Field(1, ge=1, description="Page number (1-indexed)")
-    page_size: int = Field(20, ge=1, le=100, description="Number of users per page")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "searchTerm": "Jane",
-                "page": 1,
-                "pageSize": 20,
-            }
-        }
-    }
+from pydantic import Field, EmailStr
+from common.dtos.base import BaseResponse
 
 
 class UserResponse(BaseResponse):
@@ -71,9 +18,6 @@ class UserResponse(BaseResponse):
     email_address: EmailStr = Field(..., description="Email address of the user")
     phone_number: str | None = Field(None, description="Phone number")
     account_status: Literal["active", "inactive", "suspended"] = Field(default="active", description="Account status")
-    created_at: datetime = Field(..., description="Account creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
-    last_login_at: datetime | None = Field(None, description="Last login timestamp")
 
     model_config = {
         "json_schema_extra": {
@@ -84,10 +28,7 @@ class UserResponse(BaseResponse):
                 "lastName": "Doe",
                 "emailAddress": "jane.doe@example.com",
                 "phoneNumber": "+1234567890",
-                "accountStatus": "active",
-                "createdAt": "2025-01-13T10:00:00Z",
-                "updatedAt": "2025-01-13T10:00:00Z",
-                "lastLoginAt": "2025-01-13T11:30:00Z"
+                "accountStatus": "active"
             }
         }
     }

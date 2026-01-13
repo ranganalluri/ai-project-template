@@ -120,155 +120,221 @@ class UserListResponse(BaseResponse):
     has_previous_page: bool       # → hasPreviousPage
 ```
 
-### III. Service Layer (Required)
-Services MUST accept Commands/Queries and return Responses:
+### III. Handler Layer (Use Case Layer - Required)
+Handlers MUST accept Commands/Queries and return Responses following Clean Architecture:
+
+**Architecture**: API → Use Case Handlers → Repository → Cosmos DB
 
 ```python
-class UserService:
-    """Business logic orchestration with DTOs."""
+# File: common/use_cases/user/commands/create_user_handler.py
+from common.use_cases.user.commands import CreateUserCommand
+from common.use_cases.user.queries import UserResponse
+from common.infra.repositories import UserRepository
+from common.models.user import User
+
+class CreateUserHandler:
+    """Handler for CreateUserCommand - accepts Command, returns Response."""
     
-    async def create_user(self, command: CreateUserCommand) -> UserResponse:
-        """Accept Command, return Response (NOT internal models)."""
-        user = UserMapper.from_create_command(command)
-        saved_user = await self.repository.save(user)
-        return UserMapper.to_response(saved_user)
+    def __init__(self, repository: UserRepository):
+        self.repository = repository
     
-    async def get_user(self, query: GetUserQuery) -> UserResponse:
-        """Accept Query, return Response."""
-        user = await self.repository.get_by_id(query.user_id)
-        if not user:
-            raise ValueError(f"User {query.user_id} not found")
-        return UserMapper.to_response(user)
-    
-    async def list_users(self, query: ListUsersQuery) -> UserListResponse:
-        """Accept Query with pagination, return paginated Response."""
-        users, total = await self.repository.list(
-            skip=(query.page - 1) * query.page_size,
-            limit=query.page_size,
-            sort_by=query.sort_by
+    def handle(self, command: CreateUserCommand) -> UserResponse:
+        """
+        Accept Command, map to domain model, save via repository.
+        Handler responsibility: DTO ↔ Model mapping
+        Repository responsibility: Model ↔ Document mapping
+        """
+        # Map command to domain model
+        user = User(
+            user_id=f"user-{uuid4()}",
+            name=command.name,
+            email=command.email,
         )
-        return UserListResponse(
-            users=[UserMapper.to_response(u) for u in users],
-            total_count=total,
-            page_size=query.page_size,
-            current_page=query.page,
-            total_pages=(total + query.page_size - 1) // query.page_size,
-            has_next_page=query.page * query.page_size < total,
-            has_previous_page=query.page > 1
+        
+        # Save via repository (repository handles document conversion)
+        created_user = self.repository.create(user)
+        
+        # Map to response DTO
+        return UserResponse(
+            user_id=created_user.user_id,
+            name=created_user.name,
+            email=created_user.email,
         )
 ```
 
-### IV. Mapper Layer (Required)
-Mappers transform between DTOs, domain models, and Cosmos DB documents:
+**Query Handler Example**:
+```python
+# File: common/use_cases/user/queries/get_users_handler.py
+from common.use_cases.user.queries import ListUsersQuery, UserListResponse, UserResponse
+from common.infra.repositories import UserRepository
+
+class GetUsersHandler:
+    """Handler for ListUsersQuery - accepts Query, returns paginated Response."""
+    
+    def __init__(self, repository: UserRepository):
+        self.repository = repository
+    
+    def handle(self, query: ListUsersQuery) -> UserListResponse:
+        """Accept Query with pagination, return paginated Response."""
+        offset = (query.page - 1) * query.page_size
+        
+        # Get users from repository (returns User models)
+        users, total = self.repository.list_all(offset=offset, limit=query.page_size)
+        
+        # Map to response DTOs
+        user_responses = [
+            UserResponse(
+                user_id=user.user_id,
+                name=user.name,
+                email=user.email,
+            )
+            for user in users
+        ]
+        
+        return UserListResponse(
+            users=user_responses,
+            total=total,
+            page=query.page,
+            page_size=query.page_size,
+            total_pages=(total + query.page_size - 1) // query.page_size,
+        )
+```
+
+### IV. Repository Layer (Infrastructure - Required)
+Repositories MUST inherit from BaseRepository[T] and return domain models:
 
 ```python
-class UserMapper:
-    """Transform between DTOs ↔ Models ↔ Cosmos DB documents."""
+# File: common/infra/repositories/user_repository.py
+from common.infra.repositories.base_repository import BaseRepository
+from common.models.user import User
+
+class UserRepository(BaseRepository[User]):
+    """Repository for user data access with Cosmos DB.
     
-    @staticmethod
-    def to_response(user: User) -> UserResponse:
-        """Convert domain model to API response."""
-        return UserResponse(
-            user_id=user.id,
-            first_name=user.name.split()[0],
-            last_name=user.name.split()[1] if len(user.name.split()) > 1 else "",
-            email_address=user.email,
-            phone_number=user.phone,
-            account_status=user.status,
-            created_at=user.created_at,
-            updated_at=user.updated_at
-        )
+    Responsibilities:
+    - Direct Cosmos DB operations (CRUD)
+    - Connection management
+    - Database-level error handling
+    - Map between Cosmos documents and User domain models
+    - Returns User domain models (not dicts)
+    """
     
-    @staticmethod
-    def from_create_command(cmd: CreateUserCommand) -> User:
-        """Convert command to domain model."""
-        return User(
-            name=f"{cmd.first_name} {cmd.last_name}",
-            email=cmd.email_address,
-            phone=cmd.phone_number,
-            status="active",
-            created_at=datetime.now(),
-            updated_at=datetime.now()
-        )
-    
-    @staticmethod
-    def to_cosmos_document(user: User) -> dict:
-        """Convert to Cosmos DB document (with partitionKey)."""
+    def _to_document(self, user: User) -> dict:
+        """Convert User model to Cosmos DB document."""
         return {
-            "id": user.id,
-            "partitionKey": user.tenant_id,  # Required for Cosmos DB
-            "type": "user",
-            "name": user.name,
-            "email": user.email,
-            "phone": user.phone,
-            "status": user.status,
-            "createdAt": user.created_at.isoformat(),
-            "updatedAt": user.updated_at.isoformat()
+            "id": user.user_id,
+            "user_id": user.user_id,
+            **user.model_dump(),
         }
+    
+    def _from_document(self, doc: dict) -> User:
+        """Convert Cosmos DB document to User model."""
+        return User(
+            user_id=doc["user_id"],
+            name=doc["name"],
+            email=doc["email"],
+        )
+    
+    def create(self, user: User) -> User:
+        """Create a new user - returns User model."""
+        user_doc = self._to_document(user)
+        created_doc = self.container.create_item(body=user_doc)
+        return self._from_document(created_doc)
+    
+    def list_all(self, offset: int = 0, limit: int = 10) -> tuple[list[User], int]:
+        """List all users with pagination - returns User models."""
+        # Get paginated results
+        sql_query = f"SELECT * FROM c OFFSET {offset} LIMIT {limit}"
+        items = list(self.container.query_items(query=sql_query))
+        
+        users = [self._from_document(doc) for doc in items]
+        return users, total
 ```
 
 ### V. FastAPI Routes (Required)
-Routes MUST define request/response models using DTOs:
+Routes MUST define request/response models using DTOs and dependency injection for handlers:
 
 ```python
-from fastapi import APIRouter, HTTPException, Query
-from common.use_cases.user.commands.create_user import CreateUserCommand
-from common.use_cases.user.commands.update_user import UpdateUserCommand
-from common.use_cases.user.queries.get_user import GetUserQuery, UserResponse
-from common.use_cases.user.queries.list_users import ListUsersQuery, UserListResponse
+from fastapi import APIRouter, HTTPException, Depends
+from common.use_cases.user.commands import CreateUserCommand, CreateUserHandler
+from common.use_cases.user.queries import (
+    GetUsersHandler,
+    ListUsersQuery,
+    UserListResponse,
+    UserResponse,
+)
+from api.dependencies import get_create_user_handler, get_get_users_handler
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 @router.post("", response_model=UserResponse, status_code=201)
-async def create_user(command: CreateUserCommand) -> UserResponse:
+async def create_user(
+    command: CreateUserCommand,
+    handler: CreateUserHandler = Depends(get_create_user_handler),
+) -> UserResponse:
     """
     Create a new user.
     
-    Request (camelCase JSON):
+    Request (accepts both snake_case and camelCase):
     {
-        "firstName": "Jane",
-        "lastName": "Doe",
-        "emailAddress": "jane@example.com",
-        "phoneNumber": "+1-555-0123"
+        "name": "Jane Doe",
+        "email": "jane@example.com"
     }
     
-    Response (camelCase JSON):
+    Response:
     {
         "userId": "user-uuid-123",
-        "firstName": "Jane",
-        "lastName": "Doe",
-        "emailAddress": "jane@example.com",
-        "phoneNumber": "+1-555-0123",
-        "accountStatus": "active",
-        "createdAt": "2025-01-13T10:00:00Z",
-        "updatedAt": "2025-01-13T10:00:00Z"
+        "name": "Jane Doe",
+        "email": "jane@example.com"
     }
     """
     try:
-        return await user_service.create_user(command)
+        return handler.handle(command)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-@router.get("/{user_id}", response_model=UserResponse)
-async def get_user(user_id: str) -> UserResponse:
-    """Get user by ID."""
-    try:
-        from common.dtos.queries import GetUserQuery
-        return await user_service.get_user(GetUserQuery(user_id=user_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("", response_model=UserListResponse)
 async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    sort_by: str = Query("created_at")
+    handler: GetUsersHandler = Depends(get_get_users_handler),
 ) -> UserListResponse:
     """List users with pagination."""
-    from common.dtos.queries import ListUsersQuery
-    return await user_service.list_users(
-        ListUsersQuery(page=page, page_size=page_size, sort_by=sort_by)
+    query = ListUsersQuery(page=page, page_size=page_size)
+    return handler.handle(query)
+```
+
+### VI. Dependency Injection (Required)
+Handler dependencies MUST be defined in `api/dependencies.py`:
+
+```python
+# File: apps/api/src/api/dependencies.py
+from api.config import get_settings
+from common.infra.repositories import UserRepository
+from common.use_cases.user.commands.create_user_handler import CreateUserHandler
+from common.use_cases.user.queries.get_users_handler import GetUsersHandler
+
+def get_user_repository() -> UserRepository:
+    """Get user repository instance."""
+    settings = get_settings()
+    return UserRepository(
+        cosmos_endpoint=settings.azure_cosmosdb_endpoint,
+        cosmos_key=settings.azure_cosmosdb_key,
+        database_name=settings.database_name,
+        container_name="users",
+        use_managed_identity=False,
     )
+
+def get_create_user_handler() -> CreateUserHandler:
+    """Get CreateUserHandler instance."""
+    repository = get_user_repository()
+    return CreateUserHandler(repository=repository)
+
+def get_get_users_handler() -> GetUsersHandler:
+    """Get GetUsersHandler instance."""
+    repository = get_user_repository()
+    return GetUsersHandler(repository=repository)
+```
 ```
 
 ## Middleware & Security

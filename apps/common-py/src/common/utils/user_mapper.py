@@ -3,8 +3,8 @@
 from uuid import uuid4
 
 from common.models.user import User
-from common.dtos.queries.user_queries import UserResponse, UserListResponse
-from common.dtos.commands.user_commands import CreateUserCommand, UpdateUserCommand
+from common.use_cases.user.queries import UserResponse, UserListResponse
+from common.use_cases.user.commands import CreateUserCommand, UpdateUserCommand
 
 
 class UserMapper:

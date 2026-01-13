@@ -6,11 +6,13 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class User(BaseModel):
-    """User entity model."""
+    """User entity model aligned with CreateUserCommand."""
 
     user_id: str = Field(..., description="Unique identifier for the user")
-    name: str = Field(..., description="Full name of the user")
-    email: EmailStr = Field(..., description="Email address of the user")
+    first_name: str = Field(..., description="First name of the user")
+    last_name: str = Field(..., description="Last name of the user")
+    email_address: EmailStr = Field(..., description="Email address of the user")
+    phone_number: str | None = Field(None, description="Phone number (E.164 format)")
 
     class Config:
         """Pydantic config."""
@@ -18,7 +20,9 @@ class User(BaseModel):
         json_schema_extra: ClassVar[dict] = {
             "example": {
                 "user_id": "user-123",
-                "name": "Jane Doe",
-                "email": "jane.doe@example.com",
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email_address": "jane.doe@example.com",
+                "phone_number": "+1234567890",
             }
         }

@@ -1,28 +1,9 @@
-"""Data Transfer Objects for commands and queries."""
+"""Data Transfer Objects for commands and queries.
 
-from common.dtos.commands import (
-    CreateUserCommand,
-    UpdateUserCommand,
-    DeleteUserCommand,
-)
-from common.dtos.queries import (
-    GetUserQuery,
-    ListUsersQuery,
-    SearchUsersQuery,
-    UserResponse,
-    UserListResponse,
-)
+NOTE: Commands and Queries have been moved to use_cases/ folder.
+For imports, use directly from:
+  from common.use_cases.user.commands import CreateUserCommand
+  from common.use_cases.user.queries import GetUserQuery, UserResponse
+"""
 
-__all__ = [
-    # Commands
-    "CreateUserCommand",
-    "UpdateUserCommand",
-    "DeleteUserCommand",
-    # Queries
-    "GetUserQuery",
-    "ListUsersQuery",
-    "SearchUsersQuery",
-    # Responses
-    "UserResponse",
-    "UserListResponse",
-]
+__all__ = []

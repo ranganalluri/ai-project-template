@@ -4,8 +4,8 @@ import json
 import pytest
 from datetime import datetime
 from pydantic import ValidationError
-from common.dtos.commands.user_commands import CreateUserCommand, UpdateUserCommand
-from common.dtos.queries.user_queries import UserResponse, ListUsersQuery, SearchUsersQuery
+from common.use_cases.user.commands import CreateUserCommand, UpdateUserCommand
+from common.use_cases.user.queries import UserResponse, ListUsersQuery, SearchUsersQuery
 
 
 class TestNamingConventions:
@@ -326,7 +326,7 @@ class TestPaginationResponse:
             for i in range(10)
         ]
         
-        from common.dtos.queries.user_queries import UserListResponse
+        from common.use_cases.user.queries import UserListResponse
         
         response = UserListResponse(
             users=users,

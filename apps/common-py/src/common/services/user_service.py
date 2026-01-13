@@ -8,8 +8,8 @@ from azure.cosmos.exceptions import CosmosAccessConditionFailedError, CosmosReso
 from azure.identity import DefaultAzureCredential
 
 from common.models.user import User
-from common.dtos.commands.user_commands import CreateUserCommand, UpdateUserCommand
-from common.dtos.queries.user_queries import GetUserQuery, ListUsersQuery, SearchUsersQuery, UserResponse, UserListResponse
+from common.use_cases.user.commands import CreateUserCommand, UpdateUserCommand
+from common.use_cases.user.queries import GetUserQuery, ListUsersQuery, SearchUsersQuery, UserResponse, UserListResponse
 from common.utils.user_mapper import UserMapper
 
 logger = logging.getLogger(__name__)
