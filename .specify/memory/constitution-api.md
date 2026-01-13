@@ -1,8 +1,16 @@
 # API Service Constitution
 
 **Reference**: See `constitution.md` for core principles  
-**Last Updated**: 2025-01-13  
+**Last Updated**: 2026-01-13  
+**Version**: 1.1.0
 **Scope**: `apps/api/` (FastAPI backend service)
+
+### Amendment Summary (v1.0 → v1.1.0)
+- **Section I (NEW)**: Added detailed "Request Flow" diagram showing Routes → Handlers → Commands/Queries
+- **Section III**: Clarified that Commands/Queries/Handlers live in `use_cases/` folder (NOT `common/dtos/`)
+- **Folder Structure**: Updated to show correct layout with handlers.py exports and full entity examples
+- **Naming Conventions**: Added file naming patterns for Command, Handler, Query, Response classes
+- **Examples**: Updated all code examples to show correct flow from route → handler → response
 
 ## Service Definition
 
@@ -15,41 +23,139 @@ The API service provides a **unified, secure REST interface** for all frontend a
 
 ## API Design Principles
 
-### I. Single Unified Endpoint (Non-Negotiable)
+### I. Request Flow: Routes → Handlers → Commands/Queries (CQRS)
+
+All API endpoints follow this strict flow:
+
+```
+HTTP Request (JSON, camelCase)
+    ↓
+[FastAPI Route] (apps/api/src/api/routes/{entity}.py)
+    ├─ Pydantic validates & parses to Command/Query
+    ├─ snake_case conversion (camelCase → snake_case)
+    └─ Requests handler via dependency injection
+    ↓
+[Handler] (apps/common-py/src/common/use_cases/{entity}/{commands|queries}/)
+    ├─ Single handle() method signature
+    ├─ Accepts: Command (write) or Query (read)
+    ├─ Maps Command/Query → Domain Model
+    ├─ Calls repository for persistence
+    ├─ Maps Domain Model → Response DTO
+    └─ Returns Response DTO (never domain models)
+    ↓
+[Response DTO] (apps/common-py/src/common/use_cases/{entity}/queries/responses.py)
+    ├─ Automatically serialized to camelCase JSON
+    └─ Named: {Entity}Response, {Entity}ListResponse
+    ↓
+HTTP Response (JSON, camelCase)
+```
+
+**Example User Creation Flow**:
+```python
+# 1. Route receives HTTP POST /api/users with JSON body
+# apps/api/src/api/routes/user.py
+@router.post("", response_model=UserResponse, status_code=201)
+async def create_user(
+    command: CreateUserCommand,  # Pydantic converts camelCase JSON → snake_case
+    handler: CreateUserHandler = Depends(get_create_user_handler)  # DI injects handler
+) -> UserResponse:
+    return handler.handle(command)
+
+# 2. Command object (request DTO)
+# apps/common-py/src/common/use_cases/user/commands/create_user.py
+class CreateUserCommand(BaseCommand):
+    first_name: str
+    last_name: str
+    email_address: EmailStr
+
+# 3. Handler executes use case
+# apps/common-py/src/common/use_cases/user/commands/create_user_handler.py
+class CreateUserHandler:
+    def __init__(self, repository: UserRepository):
+        self.repository = repository
+    
+    def handle(self, command: CreateUserCommand) -> UserResponse:
+        # Validate, map, save, return DTO
+        user = User(id=uuid4(), **command.model_dump())
+        saved_user = self.repository.create(user)
+        return UserResponse.from_user(saved_user)
+
+# 4. Response DTO (serialized as camelCase)
+# apps/common-py/src/common/use_cases/user/queries/responses.py
+class UserResponse(BaseResponse):
+    user_id: str
+    first_name: str
+    created_at: datetime  # → createdAt in JSON
+```
+
+### II. Single Unified Endpoint (Non-Negotiable)
+### II. Single Unified Endpoint (Non-Negotiable)
 - All routes MUST be under `/api/*` prefix
 - Coherent structure: `/api/agents/*`, `/api/documents/*`, `/api/users/*`, etc.
 - Version prefix optional but recommended: `/api/v1/*`
 - CORS enabled with specific origin allowlist (production-hardened)
 
-### II. DTO Architecture (Required)
-All endpoints MUST use DTOs with CQRS-inspired pattern:
+### III. DTO Architecture (Required)
 
-**Structure**:
+**Key Rule**: Commands, Queries, Handlers, and Response DTOs MUST live in `use_cases/` folder, organized by entity.
+
+**Folder Structure** (Current - Correct):
 ```
 apps/common-py/src/common/
-├── dtos/                      # Base DTO classes only
-│   ├── base.py                # BaseDTO, BaseCommand, BaseQuery, BaseResponse
+├── dtos/                              # [DEPRECATED] Base classes only
+│   ├── base.py                        # BaseCommand, BaseQuery parent classes
 │   └── __init__.py
-└── use_cases/                 # Commands & Queries organized by entity
-    ├── user/
-    │   ├── commands/          # Write operations (Create, Update, Delete)
-    │   │   ├── __init__.py
-    │   │   ├── create_user.py
-    │   │   ├── update_user.py
-    │   │   └── delete_user.py
-    │   ├── queries/           # Read operations (Get, List, Search)
-    │   │   ├── __init__.py
-    │   │   ├── get_user.py
-    │   │   ├── list_users.py
-    │   │   ├── search_users.py
-    │   │   └── responses.py
-    │   └── __init__.py
-    ├── agent/
-    │   ├── commands/
-    │   └── queries/
-    └── document/
-        ├── commands/
-        └── queries/
+│
+├── use_cases/                         # ★ PRIMARY LOCATION FOR ALL USE CASE CODE
+│   ├── user/
+│   │   ├── handlers.py                # Export all handlers for this entity
+│   │   ├── commands/                  # Write operations
+│   │   │   ├── __init__.py            # Export CreateUserHandler, UpdateUserHandler, etc.
+│   │   │   ├── create_user.py         # CreateUserCommand (Pydantic model)
+│   │   │   ├── create_user_handler.py # CreateUserHandler (executes use case)
+│   │   │   ├── update_user.py         # UpdateUserCommand
+│   │   │   ├── update_user_handler.py # UpdateUserHandler
+│   │   │   ├── delete_user.py         # DeleteUserCommand
+│   │   │   └── delete_user_handler.py # DeleteUserHandler
+│   │   ├── queries/                   # Read operations
+│   │   │   ├── __init__.py            # Export handlers and responses
+│   │   │   ├── get_user.py            # GetUserQuery (Pydantic model)
+│   │   │   ├── get_user_handler.py    # GetUserHandler
+│   │   │   ├── list_users.py          # ListUsersQuery
+│   │   │   ├── get_users_handler.py   # GetUsersHandler (for list)
+│   │   │   ├── search_users.py        # SearchUsersQuery
+│   │   │   ├── search_users_handler.py# SearchUsersHandler
+│   │   │   └── responses.py           # UserResponse, UserListResponse DTOs
+│   │   └── __init__.py                # Export all handlers
+│   │
+│   ├── orders/                        # New entity - follows same pattern
+│   │   ├── handlers.py
+│   │   ├── commands/
+│   │   │   ├── create_order.py
+│   │   │   └── create_order_handler.py
+│   │   ├── queries/
+│   │   │   ├── get_user_orders.py
+│   │   │   ├── get_user_orders_handler.py
+│   │   │   └── responses.py
+│   │   └── __init__.py
+│   │
+│   └── ...other entities...
+│
+├── models/                            # Domain models (User, Order, etc.)
+│   ├── user.py
+│   ├── order.py
+│   └── ...
+│
+├── infra/
+│   ├── repositories/                  # Data access layer
+│   │   ├── user_repository.py
+│   │   ├── order_repository.py
+│   │   └── base_repository.py
+│   └── cosmos/
+│       └── client.py
+│
+└── utils/
+    └── mappers.py                     # Data transformation logic
 ```
 
 **Naming Conventions**:
@@ -57,6 +163,12 @@ apps/common-py/src/common/
 - **Class names**: `PascalCase`
 - **JSON serialization**: `camelCase` (automatic via alias_generator)
 - **Constants**: `UPPER_SNAKE_CASE`
+- **Command File**: `{action}_{entity}.py` (e.g., `create_user.py`)
+- **Command Class**: `{Action}{Entity}Command` (e.g., `CreateUserCommand`)
+- **Handler File**: `{action}_{entity}_handler.py` (e.g., `create_user_handler.py`)
+- **Handler Class**: `{Action}{Entity}Handler` (e.g., `CreateUserHandler`)
+- **Response File**: `responses.py` in queries folder
+- **Response Class**: `{Entity}Response`, `{Entity}ListResponse` (e.g., `UserResponse`)
 
 **DTO Rules**:
 1. ALL DTOs inherit from `BaseDTO` or one of: `BaseCommand`, `BaseQuery`, `BaseResponse`
@@ -120,10 +232,10 @@ class UserListResponse(BaseResponse):
     has_previous_page: bool       # → hasPreviousPage
 ```
 
-### III. Handler Layer (Use Case Layer - Required)
+### IV. Handler Layer (Use Case Layer - Required)
 Handlers MUST accept Commands/Queries and return Responses following Clean Architecture:
 
-**Architecture**: API → Use Case Handlers → Repository → Cosmos DB
+**Architecture**: API Route → Use Case Handler → Repository → Cosmos DB
 
 ```python
 # File: common/use_cases/user/commands/create_user_handler.py
@@ -200,7 +312,7 @@ class GetUsersHandler:
         )
 ```
 
-### IV. Repository Layer (Infrastructure - Required)
+### V. Repository Layer (Infrastructure - Required)
 Repositories MUST inherit from BaseRepository[T] and return domain models:
 
 ```python
@@ -251,11 +363,11 @@ class UserRepository(BaseRepository[User]):
         return users, total
 ```
 
-### V. FastAPI Routes (Required)
+### VI. FastAPI Routes (Required)
 Routes MUST define request/response models using DTOs and dependency injection for handlers:
 
 ```python
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from common.use_cases.user.commands import CreateUserCommand, CreateUserHandler
 from common.use_cases.user.queries import (
     GetUsersHandler,
@@ -304,7 +416,7 @@ async def list_users(
     return handler.handle(query)
 ```
 
-### VI. Dependency Injection (Required)
+### VII. Dependency Injection (Required)
 Handler dependencies MUST be defined in `api/dependencies.py`:
 
 ```python
@@ -524,6 +636,7 @@ azd monitor   # View logs and metrics
 
 ---
 
-**Version**: 1.0  
+**Version**: 1.1.0  
 **Created**: 2025-01-13  
+**Updated**: 2026-01-13  
 **Parent**: [constitution.md](constitution.md)
