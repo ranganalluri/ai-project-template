@@ -1,8 +1,15 @@
 # React UI Project Constitution
 
 **Reference**: See `constitution.md` for core principles  
-**Last Updated**: 2025-01-13  
+**Last Updated**: 2026-01-13  
+**Version**: 1.1.0  
 **Scope**: React UI project (`apps/ui/` + `apps/ui-lib/`)
+
+### Amendment Summary (v1.0 → v1.1.0)
+- Enforced component placement: all reusable components in `apps/ui-lib`; `apps/ui` holds pages only
+- Updated project structure to remove shared components from `apps/ui`
+- Added component placement rules (non-negotiable)
+- Clarified ui-lib export guidance for shared UI
 
 ## Service Definition
 
@@ -21,17 +28,13 @@ apps/ui/                          # Main React application
 ├── src/
 │   ├── main.tsx                  # React entry point
 │   ├── App.tsx                   # Root component with routing
-│   ├── pages/                    # Page components (one per route)
+│   ├── pages/                    # Page containers (one per route)
 │   │   ├── HomePage.tsx
 │   │   ├── AgentsPage.tsx
 │   │   ├── DocumentsPage.tsx
 │   │   └── UserProfilePage.tsx
-│   ├── components/               # Page-specific components
-│   │   ├── Header.tsx
-│   │   ├── Navigation.tsx
-│   │   ├── AgentCard.tsx
-│   │   └── DocumentUploader.tsx
-│   ├── hooks/                    # Custom React hooks
+│   │   # Rule: page-specific, non-reusable view logic may live alongside the page file
+│   ├── hooks/                    # App-specific hooks
 │   │   ├── useAuth.ts
 │   │   ├── useApi.ts
 │   │   ├── useFormValidation.ts
@@ -51,9 +54,9 @@ apps/ui/                          # Main React application
 │   │   ├── formatting.ts
 │   │   ├── validation.ts
 │   │   └── constants.ts
-│   └── __tests__/                # Component tests
+│   └── __tests__/                # Page-level tests
 │       ├── HomePage.test.tsx
-│       └── components/
+│       └── pages/
 ├── public/                       # Static assets
 │   ├── env-config.js             # Runtime configuration
 │   └── favicon.ico
@@ -92,6 +95,13 @@ apps/ui-lib/                      # Shared component library
 ├── package.json                  # Dependencies
 └── README.md
 ```
+
+### Component Placement Rules (Non-Negotiable)
+
+- All **reusable UI components** MUST live in `apps/ui-lib/src/components/` and be exported from `apps/ui-lib/src/index.ts`.
+- The `apps/ui/src/pages/` folder should contain **page containers only** (route-level views and light page-specific view logic).
+- Avoid duplicating shared UI in `apps/ui/src/components/`; instead, promote to `ui-lib` and consume from there.
+- Page-specific helpers (non-reusable) may live alongside the page file within `pages/` but should not be exported for reuse.
 
 ## Naming Conventions
 
@@ -135,6 +145,8 @@ console.log(user.firstName);  // ✅ Matches API response
 ```
 
 ## UI Component Library (ui-lib)
+
+All reusable UI components must be authored here and exported via `src/index.ts`; the app (`apps/ui`) should import shared UI exclusively from this package.
 
 ### Export Pattern
 All public components MUST be exported from `src/index.ts`:
@@ -728,6 +740,7 @@ server {
 
 ---
 
-**Version**: 1.0  
+**Version**: 1.1.0  
 **Created**: 2025-01-13  
+**Updated**: 2026-01-13  
 **Parent**: [constitution.md](constitution.md)
