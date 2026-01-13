@@ -49,8 +49,10 @@ description: "Task list template for feature implementation"
 **Purpose**: Project initialization and basic structure
 
 - [ ] T001 Create project structure per implementation plan
-- [ ] T002 Initialize [language] project with [framework] dependencies
-- [ ] T003 [P] Configure linting and formatting tools
+- [ ] T002 Initialize Python (uv) and Node.js (npm) workspaces
+- [ ] T003 [P] Configure linting and formatting (ruff, prettier, ESLint)
+- [ ] T004 [P] Setup Docker and docker-compose for local development
+- [ ] T005 Setup CI/CD pipeline (.github/workflows) for automated testing
 
 ---
 
@@ -62,12 +64,17 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
-- [ ] T006 [P] Setup API routing and middleware structure
-- [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T006 Setup Cosmos DB schema and client initialization in apps/common-py
+- [ ] T007 [P] Implement authentication framework (Azure Entra ID / OAuth 2.0) in apps/api
+- [ ] T008 [P] Setup API middleware (CORS, logging, error handling) in apps/api/src/api/middleware.py
+- [ ] T009 [P] Setup API routing structure and base models in apps/api/src/api/routes/ and src/api/models/
+- [ ] T010 Implement health check endpoint GET /health in apps/api/src/api/routes/health.py
+- [ ] T011 Create base Pydantic models in apps/common-py for shared entities
+- [ ] T012 Setup React app structure and routing in apps/ui/src/
+- [ ] T013 [P] Setup shared component library (ui-lib) with base components
+- [ ] T014 [P] Setup environment configuration management (apps/api/src/api/config.py, apps/ui/.env)
+- [ ] T015 Setup Application Insights integration for observability
+- [ ] T016 Create base service classes for Azure integrations (Blob Storage, Service Bus) in apps/common-py
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -83,19 +90,98 @@ Examples of foundational tasks (adjust based on your project):
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T017 [P] [US1] Unit test for [service] in apps/api/tests/unit/test_[service].py
+- [ ] T018 [P] [US1] Integration test for [API endpoint] in apps/api/tests/integration/test_[endpoint].py
+- [ ] T019 [P] [US1] Component test for [React component] in apps/ui/src/__tests__/test_[component].tsx
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+#### Backend Tasks
+- [ ] T020 [P] [US1] Create [Entity] model in apps/common-py/src/common/models/[entity].py
+- [ ] T021 [P] [US1] Create [Entity] Pydantic schema in apps/api/src/api/models/[entity].py
+- [ ] T022 [US1] Implement [Service] in apps/api/src/api/services/[service].py (depends on T020, T021)
+- [ ] T023 [US1] Implement [endpoint] route in apps/api/src/api/routes/[resource].py
+- [ ] T024 [US1] Add request validation and error handling for [endpoint]
+- [ ] T025 [US1] Add logging for user story 1 operations
+
+#### Frontend Tasks
+- [ ] T026 [P] [US1] Create [Component] in apps/ui-lib/src/components/[Component].tsx
+- [ ] T027 [P] [US1] Create [Page] in apps/ui/src/pages/[Page].tsx (depends on T026)
+- [ ] T028 [US1] Add TypeScript types in apps/ui-lib/src/types/[types].ts
+- [ ] T029 [US1] Implement API client in apps/ui-lib/src/api/[service].ts
+- [ ] T030 [US1] Add error handling and loading states to [Page]
+- [ ] T031 [US1] Add accessibility (WCAG 2.1 AA) to components
+
+#### Integration Tasks
+- [ ] T032 [US1] Integration test: UI↔API communication for [feature]
+- [ ] T033 [US1] Docker build verification for all modified services
+- [ ] T034 [US1] Update API documentation (Swagger/OpenAPI comments)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+
+---
+
+## Phase 4: User Story 2 - [Title] (Priority: P2)
+
+**Goal**: [Brief description of what this story delivers]
+
+**Independent Test**: [How to verify this story works on its own]
+
+### Tests for User Story 2 (OPTIONAL)
+
+- [ ] T035 [P] [US2] Test for [feature] in apps/api/tests/integration/test_[feature].py
+- [ ] T036 [P] [US2] Component test for [component] in apps/ui/src/__tests__/test_[component].tsx
+
+### Implementation for User Story 2
+
+#### Backend Tasks
+- [ ] T037 [P] [US2] Create [Entity] model in apps/common-py/src/common/models/[entity].py
+- [ ] T038 [US2] Implement [Service] in apps/api/src/api/services/[service].py
+- [ ] T039 [US2] Implement [endpoint] in apps/api/src/api/routes/[resource].py
+- [ ] T040 [US2] Add validation and logging
+
+#### Frontend Tasks
+- [ ] T041 [P] [US2] Create [Component] in apps/ui-lib/src/components/[Component].tsx
+- [ ] T042 [US2] Implement [feature] in apps/ui/src/pages/[Page].tsx
+- [ ] T043 [US2] Add API integration and error handling
+
+#### Background Processing (if needed)
+- [ ] T044 [US2] Implement Azure Function trigger in apps/functions/src/functions/[trigger]
+- [ ] T045 [US2] Add logging and error handling
+
+**Checkpoint**: User Story 2 complete and integrated with Story 1
+
+---
+
+## Phase 5: Background Processing (if applicable)
+
+**Purpose**: Async tasks and background jobs
+
+Examples:
+- [ ] T046 [P] [Background] Create Service Bus queue processing function in apps/functions
+- [ ] T047 [P] [Background] Implement document processing pipeline (upload trigger → intelligence → storage)
+- [ ] T048 [Background] Add monitoring and alerting for function execution
+- [ ] T049 [Background] Integration test for async workflow
+
+---
+
+## Phase 6: Quality Assurance & Finalization
+
+**Purpose**: Testing, documentation, and deployment readiness
+
+- [ ] T050 Run full test suite (API + UI): `uv run pytest` + `npm test`
+- [ ] T051 Run coverage report: `uv run pytest --cov=src --cov-report=html` (target ≥70%)
+- [ ] T052 Linting: `uv run ruff check .` + `npm run lint`
+- [ ] T053 Type checking: `uv run mypy src/` + `npm run type-check`
+- [ ] T054 Docker build verification for all services
+- [ ] T055 Update README.md with feature documentation
+- [ ] T056 Update CHANGELOG.md with changes
+- [ ] T057 Create Azure deployment bicep updates if needed (infra/)
+- [ ] T058 E2E testing against deployed services
+- [ ] T059 Performance testing and optimization
+- [ ] T060 Security review (dependencies, CORS, auth, secrets)
+
+**Checkpoint**: All quality gates passed, ready for merge and deployment
 
 ---
 

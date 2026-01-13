@@ -1,28 +1,27 @@
 <!-- 
 SYNC IMPACT REPORT
-Version: 1.0.0 (New - Initial Constitution)
-Status: Initial constitution for simplified 3-service architecture
+Version: 1.0.1 (Updated - Current Project Alignment)
+Status: Constitution aligned with actual AI Project Template structure
 Created: 2025-12-16
-Previous Version: None (first ratification)
+Updated: 2025-01-13
+Previous Version: 1.0.0
 
 Key Changes:
-- Established 5 core principles for consolidated architecture
-- Defined service consolidation strategy (5 services → 3 services)
-- Established containerization requirements (Docker-first)
-- Defined unified API and monorepo governance
-- Specified Python/TypeScript stack with uv/npm workspace management
+- Aligned service definitions with actual apps/ structure (api, ui, functions, common-py, ui-lib)
+- Updated tech stack documentation to reflect actual project dependencies
+- Corrected file paths and Azure service references
+- Updated workspace structure documentation
+- Aligned with actual azure.yaml and infrastructure definitions
 
-Files Requiring Updates:
-- ✅ .specify/templates/plan-template.md (no changes needed - already generic)
-- ✅ .specify/templates/spec-template.md (no changes needed - already generic)
-- ⚠️ .specify/templates/tasks-template.md (update examples for Python/TypeScript tasks)
-- ✅ README.md (verify Azure-specific documentation aligns)
-- ⚠️ azure.yaml (verify service definitions align with 3-service model)
-
-Follow-up Actions:
-- Review and update task template examples to match Python/TypeScript stack
-- Verify Azure Developer CLI configuration reflects 3 services
-- Ensure all development docs reference uv workspace patterns
+Verified Components:
+- ✅ apps/api (FastAPI backend)
+- ✅ apps/ui (React + Vite frontend)
+- ✅ apps/functions (Azure Functions container)
+- ✅ apps/common-py (Shared Python utilities)
+- ✅ apps/ui-lib (Shared TypeScript/React components)
+- ✅ infra/ (Bicep infrastructure as code)
+- ✅ .specify/templates (updated for monorepo examples)
+- ✅ .github/agents (updated with correct paths)
 -->
 
 # AI Project Constitution
@@ -31,10 +30,10 @@ Follow-up Actions:
 
 ### I. Service Consolidation (Non-Negotiable)
 Services MUST be consolidated to maximize coherence and minimize deployment complexity:
-- **UI Services**: Agents-Web + Content-Web → Single unified React app (`apps/ui`)
-- **API Services**: Agents-API + Content-API → Single unified FastAPI application (`apps/api`)
-- **Background Processing**: Azure Functions → Containerized Python Functions (`apps/functions`)
-- **Shared Utilities**: Centralized Python package via uv workspace (`apps/common`)
+- **UI Services**: React app with Vite (`apps/ui`) + shared component library (`apps/ui-lib`)
+- **API Services**: Single unified FastAPI application (`apps/api`)
+- **Background Processing**: Azure Functions containerized in Python (`apps/functions`)
+- **Shared Utilities**: Centralized Python package via uv workspace (`apps/common-py`)
 
 **Rationale**: Reduces deployment points from 5 to 3, simplifies routing, enables shared middleware and authentication, reduces operational overhead.
 
@@ -66,9 +65,9 @@ Testing is mandatory and must precede implementation:
 **Rationale**: Ensures reliability of service consolidation and containerized deployments, catches breaking changes early.
 
 ### V. Workspace-Based Dependency Management
-Python and npm dependencies MUST be managed via workspace tooling:
-- **Python**: uv workspace with members: `apps/api`, `apps/functions`, `apps/common` (see `pyproject.toml`)
-- **JavaScript/TypeScript**: npm workspaces with members: `apps/ui`, shared type definitions
+Python and pnpm dependencies MUST be managed via workspace tooling:
+- **Python**: uv workspace with members: `apps/api`, `apps/functions`, `apps/common-py` (see `pyproject.toml`)
+- **JavaScript/TypeScript**: pnpm workspaces with members: `apps/ui`, `apps/ui-lib` (see `package.json`)
 - `uv sync` and `npm ci` MUST refresh all dependencies in consistent state
 - Workspace root manages shared dev dependencies (pytest, ruff, prettier, ESLint)
 
@@ -94,19 +93,133 @@ Python and npm dependencies MUST be managed via workspace tooling:
 
 ### Code Organization
 ```
-datalance-ai-simple/
+ai-project-template/
 ├── apps/
-│   ├── ui/              # React + Vite (merged: agents-web + content-web)
-│   ├── api/             # FastAPI (merged: agents-api + content-api)
+│   ├── ui/              # React + Vite frontend
+│   │   ├── src/
+│   │   │   ├── main.tsx          # React entry point
+│   │   │   ├── App.tsx           # Root component with routing
+│   │   │   ├── pages/            # Page components
+│   │   │   ├── components/       # Reusable UI components
+│   │   │   ├── services/         # API client and utilities
+│   │   │   ├── hooks/            # Custom React hooks
+│   │   │   ├── types/            # TypeScript type definitions
+│   │   │   ├── styles/           # CSS and Tailwind styles
+│   │   │   └── __tests__/        # Component tests
+│   │   ├── public/               # Static assets
+│   │   ├── Dockerfile            # Container build for Azure
+│   │   ├── vite.config.ts        # Vite configuration
+│   │   ├── tsconfig.json         # TypeScript config
+│   │   └── package.json
+│   │
+│   ├── ui-lib/          # Shared React component library
+│   │   ├── src/
+│   │   │   ├── index.ts          # Public exports
+│   │   │   ├── components/       # Reusable components
+│   │   │   ├── api/              # Shared API utilities
+│   │   │   ├── types/            # Shared TypeScript types
+│   │   │   └── utils/            # Shared utilities
+│   │   ├── tsup.config.ts        # Library build config
+│   │   └── package.json
+│   │
+│   ├── api/             # FastAPI backend service
+│   │   ├── src/
+│   │   │   └── api/
+│   │   │       ├── main.py           # FastAPI app entrypoint
+│   │   │       ├── config.py         # Configuration management
+│   │   │       ├── middleware.py     # CORS, logging middleware
+│   │   │       ├── dependencies.py   # Dependency injection
+│   │   │       ├── routes/           # API route handlers
+│   │   │       ├── models/           # Pydantic schemas
+│   │   │       └── services/         # Business logic
+│   │   ├── tests/
+│   │   │   ├── conftest.py           # Pytest fixtures
+│   │   │   ├── test_health.py        # Health endpoint tests
+│   │   │   └── integration/          # Integration tests
+│   │   ├── Dockerfile                # Container build for Azure
+│   │   └── pyproject.toml            # Python dependencies
+│   │
 │   ├── functions/       # Azure Functions (containerized)
-│   └── common/          # Shared Python utilities (uv package)
-├── infra/               # Bicep templates for Azure resources
-├── .github/workflows/   # CI/CD pipelines (build, test, deploy)
-├── .devcontainer/       # Dev Container config
+│   │   ├── src/
+│   │   │   └── functions/            # Function definitions
+│   │   ├── function_app.py           # Functions entry point
+│   │   ├── host.json                 # Functions runtime config
+│   │   ├── Dockerfile                # Container build for Azure
+│   │   └── pyproject.toml
+│   │
+│   ├── common-py/       # Shared Python utilities
+│   │   ├── src/
+│   │   │   └── common/
+│   │   │       ├── models/           # Shared data models
+│   │   │       ├── services/         # Shared service logic
+│   │   │       └── utils/            # Shared utilities
+│   │   ├── tests/
+│   │   └── pyproject.toml
+│   │
+│   └── mcp/             # Model Context Protocol (optional)
+│
+├── infra/               # Infrastructure as Code (Bicep)
+│   ├── main.bicep                    # Main orchestration
+│   ├── main.parameters.json
+│   ├── api.bicep                     # API service definition
+│   ├── api.parameters.json
+│   ├── ui.bicep                      # UI service definition
+│   ├── ui.parameters.json
+│   ├── functions.bicep               # Functions service definition
+│   ├── functions.parameters.json
+│   ├── cosmos.parameters.json        # Cosmos DB configuration
+│   ├── modules/                      # Reusable Bicep modules
+│   │   ├── ai-services.bicep
+│   │   ├── container-app.bicep
+│   │   ├── container-registry.bicep
+│   │   ├── cosmos-db.bicep
+│   │   ├── key-vault.bicep
+│   │   └── storage-account.bicep
+│   └── README.md
+│
+├── scripts/             # Deployment and automation scripts
+│   ├── predeploy.ps1                 # Pre-deployment setup
+│   ├── postdeploy.ps1                # Post-deployment config
+│   ├── ui-postdeploy.ps1             # UI-specific post-deploy
+│   └── write_env.ps1                 # Environment file generation
+│
+├── .specify/            # Project specifications and templates
+│   ├── memory/
+│   │   └── constitution.md           # Project constitution (this file)
+│   ├── templates/
+│   │   ├── spec-template.md
+│   │   ├── plan-template.md
+│   │   ├── tasks-template.md
+│   │   └── checklist-template.md
+│   └── scripts/
+│       └── powershell/               # Automation scripts
+│
+├── .github/             # GitHub workflows and agents
+│   ├── agents/                       # Speckit agent definitions
+│   │   ├── copilot-instructions.md   # Development guidelines
+│   │   └── speckit.*.agent.md        # Feature workflow agents
+│   ├── prompts/                      # Agent prompts
+│   └── workflows/                    # CI/CD workflows
+│       ├── build.yml
+│       ├── test.yml
+│       └── lint.yml
+│
+├── docs/                # Project documentation
+├── data/                # Local data storage (uploads, etc.)
+├── specs/               # Feature specifications (generated)
+├── hooks/               # Git hooks
+├── .devcontainer/       # Dev container configuration
+├── .vscode/             # VS Code workspace settings
+│
+├── pyproject.toml       # Root Python workspace config (uv)
+├── package.json         # Root npm workspace config (pnpm)
+├── pnpm-workspace.yaml  # pnpm workspace configuration
 ├── azure.yaml           # Azure Developer CLI configuration
-├── pyproject.toml       # Python workspace root config (uv)
-├── package.json         # npm workspace root config
-└── README.md            # Getting started guide
+├── docker-compose.yml   # Local development services
+├── conftest.py          # Root pytest configuration
+├── pytest.ini           # Pytest settings
+├── .gitignore           # Git ignore patterns
+└── README.md            # Project overview and getting started
 ```
 
 ### Local Development Commands
@@ -172,4 +285,4 @@ For runtime development questions not addressed in this constitution, refer to:
 - **Architecture Details**: [PROJECT-ANALYSIS.md](.github/PROJECT-ANALYSIS.md) - System flows and service dependencies
 - **API Contracts**: `specs/*/contracts/` - Request/response schemas
 
-**Version**: 1.0.0 | **Ratified**: 2025-12-16 | **Last Amended**: 2025-12-16
+**Version**: 1.0.1 | **Ratified**: 2025-12-16 | **Last Amended**: 2025-01-13
