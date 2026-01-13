@@ -24,7 +24,29 @@ Verified Components:
 - ✅ .github/agents (updated with correct paths)
 -->
 
-# AI Project Constitution
+# AI Project Constitution (Master)
+
+**Status**: Master document with links to service-specific constitutions  
+**Last Updated**: 2025-01-13
+
+## Service-Specific Constitutions
+
+This document defines core principles. For detailed implementation guidance, see:
+
+### Frontend (React + TypeScript)
+- **[constitution-ui-react.md](constitution-ui-react.md)** - React UI project
+  - Covers: `apps/ui/` (React app) + `apps/ui-lib/` (shared components)
+  - Content: Component development, API integration, hooks, testing, TypeScript setup
+
+### Backend (Python)
+- **[constitution-python.md](constitution-python.md)** - All Python services
+  - Covers: `apps/api/` (FastAPI), `apps/common-py/` (shared DTOs), `apps/functions/` (async), `apps/mcp/` (optional)
+  - Content: DTO architecture, services, repositories, naming conventions, testing
+
+> **Quick Start**: 
+> - Building UI features? → Read [constitution-ui-react.md](constitution-ui-react.md)
+> - Building API endpoints? → Read [constitution-python.md](constitution-python.md)
+> - Adding shared services? → See both documents for consistency
 
 ## Core Principles
 
@@ -88,6 +110,11 @@ Python and pnpm dependencies MUST be managed via workspace tooling:
 - **Docker Compose**: Azurite (blob storage), Service Bus emulator for local testing
 - **Dev Container**: Optional, provides pre-configured environment (Python 3.11+, Node.js 20+, Azure CLI, Docker)
 - `azure.yaml`: Azure Developer CLI configuration for `azd up` provisioning
+
+**Resources**:
+- See `apps/common-py/NAMING_CONVENTIONS.md` for quick reference
+- See `apps/common-py/USER_SERVICE_ARCHITECTURE.md` for complete examples
+- See `apps/common-py/tests/test_dto_naming_conventions.py` for validation tests
 
 ## Development Workflow
 

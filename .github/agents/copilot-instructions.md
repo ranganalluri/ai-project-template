@@ -96,6 +96,134 @@ azd deploy api
 
 ## Code Style
 
+### Naming Conventions (Mandatory)
+
+**Python Fields**: `snake_case`
+```python
+user_id: str
+first_name: str
+email_address: str
+created_at: datetime
+```
+
+**Class Names**: `PascalCase`
+```python
+UserResponse
+CreateUserCommand
+UserMapper
+```
+
+**JSON/API**: `camelCase` (automatic conversion)
+```json
+{"userId": "123", "firstName": "Jane", "createdAt": "2025-01-13T10:00:00Z"}
+```
+
+**Constants**: `UPPER_SNAKE_CASE`
+```python
+MAX_PAGE_SIZE = 100
+API_VERSION = "v1"
+```
+
+### DTO Architecture (Required for All APIs)
+
+**ALL new API endpoints MUST use DTOs with this structure:**
+
+```
+apps/common-py/src/common/dtos/
+├── base.py              # BaseDTO with alias_generator=to_camel
+├── commands/            # Write operations (CreateXCommand, UpdateXCommand)
+├── queries/             # Read operations (GetXQuery, XResponse)
+└── __init__.py
+```
+
+**Required Pattern**:
+
+1. **Base DTO** (already exists in `common/dtos/base.py`):
+```python
+from pydantic import BaseModel, ConfigDict
+
+def to_camel(string: str) -> str:
+    components = string.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
+
+class BaseDTO(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,      # Auto-convert snake_case → camelCase
+        populate_by_name=True,         # Accept both formats
+        extra="forbid"                 # Reject extra fields
+    )
+```
+
+2. **Commands** (write operations):
+```python
+from common.dtos.base import BaseCommand
+
+class CreateUserCommand(BaseCommand):
+    first_name: str              # Python: snake_case
+    last_name: str
+    email_address: str
+    # JSON automatically uses: firstName, lastName, emailAddress
+```
+
+3. **Queries & Responses** (read operations):
+```python
+from common.dtos.base import BaseQuery, BaseResponse
+
+class GetUserQuery(BaseQuery):
+    user_id: str                 # Python: snake_case → JSON: userId
+
+class UserResponse(BaseResponse):
+    user_id: str
+    first_name: str
+    created_at: datetime
+    # JSON: {"userId": "...", "firstName": "...", "createdAt": "..."}
+```
+
+4. **Mapper** (layer separation):
+```python
+class UserMapper:
+    @staticmethod
+    def to_response(user: User) -> UserResponse:
+        return UserResponse(user_id=user.id, ...)
+    
+    @staticmethod
+    def from_create_command(cmd: CreateUserCommand) -> User:
+        return User(name=f"{cmd.first_name} {cmd.last_name}", ...)
+```
+
+5. **Service** (business logic):
+```python
+class UserService:
+    async def create_user(self, command: CreateUserCommand) -> UserResponse:
+        user = UserMapper.from_create_command(command)
+        saved = await self.repository.save(user)
+        return UserMapper.to_response(saved)
+```
+
+6. **FastAPI Route**:
+```python
+@router.post("/users", response_model=UserResponse)
+async def create_user(command: CreateUserCommand) -> UserResponse:
+    return await user_service.create_user(command)
+```
+
+**Key Rules**:
+- ✅ Use `snake_case` for Python fields
+- ✅ Use `PascalCase` for class names
+- ✅ Inherit from `BaseDTO`/`BaseCommand`/`BaseQuery`/`BaseResponse`
+- ✅ JSON automatically converts to `camelCase`
+- ✅ Add field validators for constraints
+- ✅ Use Mappers for transformations
+- ✅ Services accept Commands/Queries, return Responses
+- ❌ Never expose internal models directly in API
+- ❌ Never use `camelCase` in Python code
+- ❌ Never bypass DTOs in controllers
+
+**Resources**:
+- Quick Reference: `apps/common-py/NAMING_CONVENTIONS.md`
+- Complete Guide: `apps/common-py/USER_SERVICE_ARCHITECTURE.md`
+- Test Examples: `apps/common-py/tests/test_dto_naming_conventions.py`
+
 ### Python
 - **Version**: 3.12+
 - **Formatter**: Ruff (enforce via CI)
