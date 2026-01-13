@@ -39,13 +39,13 @@ This document defines core principles. For detailed implementation guidance, see
   - Content: Component development, API integration, hooks, testing, TypeScript setup
 
 ### Backend (Python)
-- **[constitution-python.md](constitution-python.md)** - All Python services
+- **[constitution-api.md](constitution-api.md)** - All Python services
   - Covers: `apps/api/` (FastAPI), `apps/common-py/` (shared DTOs), `apps/functions/` (async), `apps/mcp/` (optional)
   - Content: DTO architecture, services, repositories, naming conventions, testing
 
 > **Quick Start**: 
 > - Building UI features? → Read [constitution-ui-react.md](constitution-ui-react.md)
-> - Building API endpoints? → Read [constitution-python.md](constitution-python.md)
+> - Building API endpoints? → Read [constitution-api.md](constitution-api.md)
 > - Adding shared services? → See both documents for consistency
 
 ## Core Principles

@@ -79,9 +79,11 @@ apps/ui-lib/                      # Shared component library
 │   ├── api/                      # Shared API utilities
 │   │   ├── client.ts
 │   │   └── interceptors.ts
-│   ├── hooks/                    # Shared hooks
+│   ├── hooks/                    # Shared hooks (MUST be created here)
 │   │   ├── useHttp.ts
-│   │   └── usePagination.ts
+│   │   ├── usePagination.ts
+│   │   ├── useDebounce.ts
+│   │   └── useLocalStorage.ts
 │   ├── types/                    # Shared TypeScript types
 │   │   ├── index.ts
 │   │   └── api.types.ts
@@ -99,8 +101,11 @@ apps/ui-lib/                      # Shared component library
 ### Component Placement Rules (Non-Negotiable)
 
 - All **reusable UI components** MUST live in `apps/ui-lib/src/components/` and be exported from `apps/ui-lib/src/index.ts`.
+- All **reusable custom hooks** MUST live in `apps/ui-lib/src/hooks/` and be exported from `apps/ui-lib/src/index.ts`.
 - The `apps/ui/src/pages/` folder should contain **page containers only** (route-level views and light page-specific view logic).
+- The `apps/ui/src/hooks/` folder should contain **app-specific hooks only** (hooks that are tightly coupled to app logic and not reusable).
 - Avoid duplicating shared UI in `apps/ui/src/components/`; instead, promote to `ui-lib` and consume from there.
+- Avoid duplicating shared hooks in `apps/ui/src/hooks/`; instead, promote to `ui-lib` and consume from there.
 - Page-specific helpers (non-reusable) may live alongside the page file within `pages/` but should not be exported for reuse.
 
 ## Naming Conventions
@@ -149,10 +154,11 @@ console.log(user.firstName);  // ✅ Matches API response
 All reusable UI components must be authored here and exported via `src/index.ts`; the app (`apps/ui`) should import shared UI exclusively from this package.
 
 ### Export Pattern
-All public components MUST be exported from `src/index.ts`:
+All public components and hooks MUST be exported from `src/index.ts`:
 
 ```typescript
 // ui-lib/src/index.ts
+// Components
 export { Button } from "./components/Button";
 export { Input } from "./components/Input";
 export { Modal } from "./components/Modal";
@@ -162,6 +168,12 @@ export { Card } from "./components/Card";
 export type { ButtonProps } from "./components/Button";
 export type { InputProps } from "./components/Input";
 export type { ModalProps } from "./components/Modal";
+
+// Hooks
+export { useHttp } from "./hooks/useHttp";
+export { usePagination } from "./hooks/usePagination";
+export { useDebounce } from "./hooks/useDebounce";
+export { useLocalStorage } from "./hooks/useLocalStorage";
 ```
 
 ### Component Development Pattern
@@ -212,21 +224,116 @@ export const Button: React.FC<ButtonProps> = ({
 
 ### Using ui-lib in apps/ui
 ```typescript
-// apps/ui/src/components/Header.tsx
-import { Button } from "@ui-lib";  // Import from shared library
+// apps/ui/src/pages/HomePage.tsx
+import { Button, useDebounce } from "@agentic/ui-lib";  // Import components and hooks from shared library
 
-export const Header: React.FC = () => {
+export const HomePage: React.FC = () => {
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const debouncedSearch = useDebounce(searchTerm, 300);
+
+  React.useEffect(() => {
+    if (debouncedSearch) {
+      // Perform search with debounced value
+      console.log("Searching for:", debouncedSearch);
+    }
+  }, [debouncedSearch]);
+
   return (
-    <header className="bg-white shadow">
-      <div className="flex justify-between items-center p-4">
-        <h1>AI Project</h1>
-        <Button variant="primary" size="md">
-          Sign Out
-        </Button>
-      </div>
-    </header>
+    <div className="p-4">
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Search..."
+        className="border rounded px-3 py-2"
+      />
+      <Button variant="primary" size="md">
+        Sign Out
+      </Button>
+    </div>
   );
 };
+```
+
+## Custom Hooks
+
+### Hook Placement Rules
+
+- **Reusable hooks** (shared across multiple features) MUST be created in `apps/ui-lib/src/hooks/`
+- **App-specific hooks** (tightly coupled to app logic, auth, or routing) should remain in `apps/ui/src/hooks/`
+
+Examples:
+- ✅ `ui-lib/src/hooks/useDebounce.ts` - Generic utility hook
+- ✅ `ui-lib/src/hooks/usePagination.ts` - Generic pagination logic
+- ✅ `ui-lib/src/hooks/useLocalStorage.ts` - Generic storage hook
+- ✅ `apps/ui/src/hooks/useAuth.ts` - App-specific authentication
+- ✅ `apps/ui/src/hooks/useApi.ts` - App-specific API configuration
+
+### Hook Development Pattern (ui-lib)
+```typescript
+// ui-lib/src/hooks/useDebounce.ts
+import { useEffect, useState } from "react";
+
+/**
+ * Debounces a value by delaying updates until after a specified delay
+ * @param value - The value to debounce
+ * @param delay - Delay in milliseconds
+ * @returns Debounced value
+ */
+export function useDebounce<T>(value: T, delay: number = 500): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+```
+
+```typescript
+// ui-lib/src/hooks/useLocalStorage.ts
+import { useState, useEffect } from "react";
+
+/**
+ * Syncs state with localStorage
+ * @param key - localStorage key
+ * @param initialValue - Default value if key doesn't exist
+ * @returns [value, setValue] tuple
+ */
+export function useLocalStorage<T>(
+  key: string,
+  initialValue: T
+): [T, (value: T | ((val: T) => T)) => void] {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore =
+        value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+
+  return [storedValue, setValue];
+}
 ```
 
 ## API Client Setup
