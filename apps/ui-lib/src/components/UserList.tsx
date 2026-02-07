@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
-import { Button } from '@agentic/ui-lib';
-import { useGetApi, usePostApi } from '@/hooks/useApi';
+import { Button } from '../components/Button';
+import { useGetApi, usePostApi } from '../hooks/useApi';
 
 interface UserListResponse {
   users: Array<{

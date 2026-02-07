@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiClient } from "@/services/api-client";
+import { apiClient } from "../api/api-client";
 
 // GET
 export function useGetApi<T>(url: string, skip = false) {

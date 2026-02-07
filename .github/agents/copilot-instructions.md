@@ -1,3 +1,7 @@
+---
+applyTo: "*"
+---
+
 # AI Project Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2025-01-13

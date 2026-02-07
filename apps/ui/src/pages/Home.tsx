@@ -2,7 +2,7 @@
 import React from 'react';
 // import { Card } from '@/components/common/Card';
 // import { Button } from '@agentic/ui-lib';
-import { UserList } from '@/components/common/UserList';
+import { UserList } from '@agentic/ui-lib';
 
 export const Home: React.FC = () => {
   // const click = () => {

@@ -1,5 +1,6 @@
 /** API client exports. */
 export * from './config';
+export * from './api-client';
 export * from './chatApi';
 export * from './contentProcessingApi';
 export * from './fileApi';

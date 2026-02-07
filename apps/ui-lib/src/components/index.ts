@@ -13,3 +13,4 @@ export * from './PageControls';
 export * from './FieldDetailsPanel';
 export * from './SchemaPanel';
 export * from './FieldsListPanel';
+export * from './UserList';

@@ -1,10 +1,8 @@
-/// <reference types="vite/client" />
-
 declare global {
   interface Window { ENV?: Record<string, string> }
 }
 
-export const API_BASE_URL = window.ENV?.VITE_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000'
+export const API_BASE_URL = window.ENV?.VITE_API_URL || 'http://localhost:8000'
 
 console.log("API URL:", API_BASE_URL);
 export class ApiClient {
